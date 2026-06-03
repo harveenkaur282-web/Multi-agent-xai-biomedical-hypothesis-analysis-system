@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "sources": [
+      "Rotterdam Criteria 2003",
+      "Androgen Excess Society Guidelines 2006",
+      "ADA Insulin Resistance Thresholds 2023"
+    ],
+    "last_reviewed": "2024-01"
+  },
+  "lab_thresholds": {
+    "fasting_insulin_uiu_ml": {
+      "normal_max": 14.0,
+      "elevated_min": 14.0,
+      "critical_min": 25.0,
+      "unit": "uIU/mL"
+    },
+    "lh_fsh_ratio": {
+      "normal_max": 2.0,
+      "elevated_min": 2.0,
+      "critical_min": 3.0,
+      "unit": "ratio"
+    },
+    "testosterone_ng_dl": {
+      "normal_max": 70.0,
+      "elevated_min": 70.0,
+      "critical_min": 100.0,
+      "unit": "ng/dL"
+    },
+    "homa_ir": {
+      "normal_max": 2.5,
+      "elevated_min": 2.5,
+      "critical_min": 4.0,
+      "unit": "index"
+    },
+    "amh_ng_ml": {
+      "normal_max": 6.0,
+      "elevated_min": 6.0,
+      "critical_min": 10.0,
+      "unit": "ng/mL"
+    },
+    "fasting_glucose_mg_dl": {
+      "normal_max": 99.0,
+      "elevated_min": 100.0,
+      "critical_min": 126.0,
+      "unit": "mg/dL"
+    },
+    "bmi": {
+      "normal_max": 24.9,
+      "elevated_min": 25.0,
+      "critical_min": 30.0,
+      "unit": "kg/m2"
+    }
+  },
+  "normalization_ranges": {
+    "fasting_insulin_uiu_ml": {"min": 2.0, "max": 30.0},
+    "lh_fsh_ratio":           {"min": 0.5, "max": 4.5},
+    "age":                    {"min": 18.0, "max": 45.0},
+    "bmi":                    {"min": 16.0, "max": 45.0},
+    "testosterone_ng_dl":     {"min": 10.0, "max": 120.0},
+    "homa_ir":                {"min": 0.5, "max": 6.0},
+    "amh_ng_ml":              {"min": 0.5, "max": 12.0}
+  },
+  "phenotype_classification": {
+    "classic_hyperandrogenic": {
+      "required": ["hyperandrogenism", "oligomenorrhea", "polycystic ovary morphology"],
+      "description": "Rotterdam Phenotype A — full triad"
+    },
+    "metabolic_dominant": {
+      "required": ["insulin resistance", "hyperglycemia"],
+      "supporting": ["hyperandrogenism"],
+      "description": "Insulin-resistant variant, highest T2DM progression risk"
+    },
+    "normo_androgenic": {
+      "required": ["oligomenorrhea", "polycystic ovary morphology"],
+      "description": "Rotterdam Phenotype D — without clinical hyperandrogenism"
+    }
+  }
+}

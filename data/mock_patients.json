@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "purpose": "Validation test vectors for pipeline regression testing",
+    "expected_outputs": {
+      "PCOS-CLASSIC-001": "high_bayesian_credibility, strong_quantum_interaction",
+      "PCOS-METABOLIC-002": "moderate_bayesian_credibility, moderate_quantum_interaction",
+      "CTRL-HEALTHY-003": "low_bayesian_credibility, weak_quantum_interaction"
+    }
+  },
+  "patients": [
+    {
+      "patient_id": "PCOS-CLASSIC-001",
+      "phenotype_label": "Classic Hyperandrogenic Phenotype",
+      "age": 26,
+      "bmi": 27.3,
+      "symptoms": ["irregular_cycles", "hirsutism", "acne", "fatigue"],
+      "labs": {
+        "fasting_insulin_uiu_ml": 22.5,
+        "lh_fsh_ratio": 3.1,
+        "testosterone_ng_dl": 88.0,
+        "homa_ir": 4.1,
+        "amh_ng_ml": 9.8,
+        "fasting_glucose_mg_dl": 98.0
+      },
+      "ultrasound": "polycystic_ovaries_bilateral",
+      "clinical_remarks": "Patient presents with full Rotterdam triad. Elevated androgens with clinical hirsutism. LH/FSH inversion confirmed.",
+      "query": "What is the dominant endocrine axis dysfunction driving hyperandrogenism and cycle irregularity in this patient?"
+    },
+    {
+      "patient_id": "PCOS-METABOLIC-002",
+      "phenotype_label": "Metabolic-Dominant Phenotype",
+      "age": 31,
+      "bmi": 34.1,
+      "symptoms": ["fatigue", "weight_gain", "irregular_cycles", "brain_fog"],
+      "labs": {
+        "fasting_insulin_uiu_ml": 28.0,
+        "lh_fsh_ratio": 1.8,
+        "testosterone_ng_dl": 62.0,
+        "homa_ir": 5.2,
+        "amh_ng_ml": 5.1,
+        "fasting_glucose_mg_dl": 108.0
+      },
+      "ultrasound": "borderline_follicular_count",
+      "clinical_remarks": "Dominant metabolic presentation. Severe insulin resistance with prediabetic glucose. Androgen levels borderline. Reproductive axis mildly suppressed.",
+      "query": "Is the primary driver of cycle disruption in this patient metabolic or reproductive in origin?"
+    },
+    {
+      "patient_id": "CTRL-HEALTHY-003",
+      "phenotype_label": "Healthy Control Vector",
+      "age": 28,
+      "bmi": 22.1,
+      "symptoms": ["none"],
+      "labs": {
+        "fasting_insulin_uiu_ml": 7.2,
+        "lh_fsh_ratio": 1.3,
+        "testosterone_ng_dl": 41.0,
+        "homa_ir": 1.1,
+        "amh_ng_ml": 3.4,
+        "fasting_glucose_mg_dl": 84.0
+      },
+      "ultrasound": "normal_ovarian_morphology",
+      "clinical_remarks": "All markers within normal reference ranges. Included as negative control to validate pipeline specificity.",
+      "query": "Confirm absence of PCOS-axis dysfunction and identify any subclinical risk markers."
+    }
+  ]
+}

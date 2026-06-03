@@ -1,0 +1,13 @@
+streamlit==1.38.0
+langgraph==0.1.4
+crewai>=0.51.0,<0.100.0
+qiskit==1.1.0
+qiskit-aer==0.14.2
+chromadb>=0.5.0
+rank-bm25==0.2.2
+biopython==1.84
+pydantic>=2.4.2,<3.0.0
+scipy==1.13.1
+statsmodels==0.14.2
+python-dotenv==1.0.1
+graphviz

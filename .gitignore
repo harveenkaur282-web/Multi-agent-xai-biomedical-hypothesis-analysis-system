@@ -146,7 +146,7 @@ activemq-data/
 
 # SageMath parsed files
 *.sage.py
-
+pcos_env/
 # Environments
 .env
 .envrc
@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+__pycache__/
+*.pyc
+.pytest_cache/
+.streamlit/
+data/audit_trail/*.json
