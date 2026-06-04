@@ -221,3 +221,4 @@ __pycache__/
 .pytest_cache/
 .streamlit/
 data/audit_trail/*.json
+pcos_env/

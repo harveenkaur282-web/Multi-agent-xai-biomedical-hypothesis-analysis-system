@@ -1,16 +1,24 @@
 import json
-import os
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 
-AUDIT_DIR = "data/audit_trail"
+# Use Path objects instead of hardcoded string slashes
+AUDIT_DIR = Path("data") / "audit_trail"
 
 def log_run(state: dict) -> str:
-    os.makedirs(AUDIT_DIR, exist_ok=True)
+    # Safely handles directory creation cross-platform
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
     
     patient_id = state.get("raw_input", {}).get("patient_id", "unknown")
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    
+    # CRITICAL FIX FOR 2026: datetime.utcnow() is deprecated! 
+    # Use timezone-aware UTC datetime to keep your codebase production-grade.
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    
     filename = f"{patient_id}_{timestamp}.json"
-    filepath = os.path.join(AUDIT_DIR, filename)
+    
+    # Securely joins paths with correct system slashes (/ for UNIX, \ for Windows)
+    filepath = AUDIT_DIR / filename
     
     # Only serialize what exists in state at time of call
     payload = {
@@ -27,8 +35,11 @@ def log_run(state: dict) -> str:
         "node4_fused":      state.get("fused_result", {})
     }
     
+    # Open the PosixPath or WindowsPath object directly
     with open(filepath, "w") as f:
         json.dump(payload, f, indent=2, default=str)
     
-    print(f"[Audit] Run logged → {filepath}")
-    return filepath
+    # Convert back to a string for your log print and return
+    filepath_str = str(filepath)
+    print(f"[Audit] Run logged → {filepath_str}")
+    return filepath_str
