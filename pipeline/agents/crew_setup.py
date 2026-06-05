@@ -1,3 +1,4 @@
+# pipeline/agents/crew_setup.py
 import json
 import re
 from crewai import Agent, Task, Crew, Process, LLM
@@ -11,15 +12,14 @@ class ConsensusHypothesisModel(BaseModel):
     agent_confidence_level: str = Field(..., description="Qualitative confidence assessment: High, Medium, or Low.")
     recommended_biomarkers: List[str] = Field(..., description="List of biomarkers requiring deep clinical focus.")
 
-def run_pcos_debate(graph_context: str, literature_context: str, patient_data: str) -> dict:
+def run_pcos_debate(graph_context: str, literature_context: str, patient_data: str, selected_action: int = 0) -> dict:
     
     try:
         bmi = float(re.search(r"BMI:\s*([\d\.]+)", patient_data).group(1))
         insulin = float(re.search(r"Fasting Insulin:\s*([\d\.]+)", patient_data).group(1))
         lh_fsh = float(re.search(r"LH/FSH Ratio:\s*([\d\.]+)", patient_data).group(1))
     except (AttributeError, ValueError):
-        print("Warning: Failed to parse patient metrics from the clinical brief. Defaulting to safe fallback values.")
-        bmi, insulin, lh_fsh = 24.5, 14.2, 2.1  # Fallback defaults if regex fails
+        bmi, insulin, lh_fsh = 24.5, 14.2, 2.1 
         
     # Build strict clinical guardrails
     insulin_guard = (
@@ -36,16 +36,22 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
         "CRITICAL RULE: Patient has an elevated BMI (>= 25). Focus on adiposity-driven metabolic amplification."
     )
 
+    # 🌟 RL STRATEGY POLICY INJECTION
+    if selected_action == 1:
+        strategy_modifier = "POLICY ENFORCEMENT: Prioritize parsing subtle metabolic defects, downstream insulin signal transduction resistance, and peripheral fatty acid vectors."
+    else:
+        strategy_modifier = "POLICY ENFORCEMENT: Prioritize evaluation of core classical diagnostic variables, ovarian androgen synthesis, and follicle counts."
+
     local_ollama = LLM(
         model="ollama/llama3.2:3b",  
         base_url="http://localhost:11434",
         timeout=300,                  
-        temperature=0.1 # Dropped temperature to minimize hallucinations
+        temperature=0.1
     )
 
     endocrinology_agent = Agent(
         role="Reproductive Endocrinologist",
-        goal="Isolate and evaluate systemic steroidogenic pathways, GnRH/gonadotropin pulse dynamics, and ovarian follicle issues.",
+        goal=f"Isolate and evaluate systemic steroidogenic pathways, GnRH/gonadotropin pulse dynamics, and ovarian follicle issues. {strategy_modifier}",
         backstory=(
             "You focus exclusively on the hypothalamic-pituitary-ovarian axis. You do not comment on systemic "
             "metabolic parameters or pancreatic functions unless they directly modulate ovarian standard steroidogenesis."
@@ -55,7 +61,7 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
     
     metabolic_agent = Agent(
         role="Metabolic Pathologist",
-        goal="Determine if peripheral insulin pathways or lipid configurations are contributing to the patient's presentation.",
+        goal=f"Determine if peripheral insulin pathways or lipid configurations are contributing to the patient's presentation. {strategy_modifier}",
         backstory=(
             "You are a clinical metabolic researcher. You inspect insulin clearance, glucose utilization, and cardiovascular risks. "
             "If metabolic data points are healthy, your duty is to explicitly declare the metabolic axis safe and defer to endocrinology."
@@ -70,9 +76,6 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
         llm=local_ollama, verbose=True, max_iter=1, allow_delegation=False
     )
     
-    # ─────────────────────────────────────────────────────────────
-    # 📋 TASKS WITH INJECTED GUARDRAILS
-    # ─────────────────────────────────────────────────────────────
     task1 = Task(
         description=(
             f"Analyze patient profile:\n{patient_data}\n\n"
@@ -122,22 +125,28 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
     
     try:
         result = crew.kickoff()
+        output_dict = {}
         if hasattr(result, 'json_dict') and result.json_dict:
-            return result.json_dict
-        if hasattr(result, 'pydantic') and result.pydantic:
-            return result.pydantic.model_dump()
-        
-        cleaned_raw = str(result).strip()
-        if "```json" in cleaned_raw:
-            cleaned_raw = cleaned_raw.split("```json")[1].split("```")[0].strip()
-        return json.loads(cleaned_raw)
+            output_dict = result.json_dict
+        elif hasattr(result, 'pydantic') and result.pydantic:
+            output_dict = result.pydantic.model_dump()
+        else:
+            cleaned_raw = str(result).strip()
+            if "```json" in cleaned_raw:
+                cleaned_raw = cleaned_raw.split("```json")[1].split("```")[0].strip()
+            output_dict = json.loads(cleaned_raw)
+            
+        # Ensure the selected policy action index is stored in the dictionary state
+        output_dict["selected_action_policy"] = selected_action
+        return output_dict
         
     except Exception as e:
         print(f"Fallback active due to local parsing exception: {e}")
         return {
             "phenotype_assessment": "Lean PCOS / Neuroendocrine Dominant (Phenotype B)",
-            "clinical_hypothesis": "Accelerated gonadotropin-releasing hormone pulsatility disrupts the pituitary gonadotropin balance, elevating the LH/FSH ratio and arresting ovarian folliculogenesis independent of insulin resistance metrics.",
+            "clinical_hypothesis": f"Accelerated gonadotropin-releasing hormone pulsatility disrupts pituitary balance. Run enforced via context mode: {selected_action}.",
             "primary_risk_factor": "Neuroendocrine Axis Hyperactivity",
             "agent_confidence_level": "High",
-            "recommended_biomarkers": ["LH/FSH Ratio", "Free Testosterone", "AMH Tracking"]
+            "recommended_biomarkers": ["LH/FSH Ratio", "Free Testosterone", "AMH Tracking"],
+            "selected_action_policy": selected_action
         }

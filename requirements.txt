@@ -15,3 +15,4 @@ graphviz
 scikit-learn==1.3.2
 neo4j
 sentence-transformers
+shap==0.41.0

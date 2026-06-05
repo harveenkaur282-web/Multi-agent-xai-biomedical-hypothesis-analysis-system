@@ -18,5 +18,8 @@ class PCOSState(TypedDict):
     ici_metrics:         Dict[str, Any]
 
     # Node 5
-    xai_metrics:         Dict[str, Any]         # raw numbers for Streamlit charts
-    xai_report:          str                    # markdown string for download button
+    xai_metrics:         Dict[str, Any]        
+    xai_report:          str                  
+
+    # for persistent memory tracking
+    rl_policy_metadata:  Dict[str, Any]

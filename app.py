@@ -1,17 +1,14 @@
-# app.py
 import streamlit as st
 import graphviz
+import pandas as pd
 from pipeline.graph import build_pcos_pipeline
 
 st.set_page_config(page_title="PCOS Multi-Agent XAI Dashboard", layout="wide")
 
-st.title("🧬 PCOS Multi-Agent XAI Diagnostics Framework")
+st.title(" PCOS Multi-Agent XAI Diagnostics Framework")
 st.markdown("---")
 
-# ─────────────────────────────────────────────────────────────────
-# 🔬 EXPANDED PATIENT CLINICAL INTAKE PANEL (SIDEBAR)
-# ─────────────────────────────────────────────────────────────────
-st.sidebar.header("🔬 Patient Clinical Intake Panel")
+st.sidebar.header("Patient Clinical Intake Panel")
 
 with st.sidebar.expander("Patient Demographics & History", expanded=True):
     age = st.sidebar.slider("Age", 18, 45, 27)
@@ -45,9 +42,6 @@ user_input_case = {
 # Instantiate the compilation engine once at startup
 pipeline_executor = build_pcos_pipeline()
 
-# ─────────────────────────────────────────────────────────────────
-# 📊 CENTRAL DASHBOARD WORKSPACE
-# ─────────────────────────────────────────────────────────────────
 st.subheader("Patient Clinical Profile Data Vector")
 st.json(user_input_case)
 
@@ -62,22 +56,17 @@ if st.button("Trigger Advanced Execution Graph", type="primary"):
 
 st.markdown("---")
 
-# ─────────────────────────────────────────────────────────────
-# 📑 MULTI-NODE ANALYSIS TABS
-# ─────────────────────────────────────────────────────────────
 if "pcos_output_state" in st.session_state:
     output_state = st.session_state["pcos_output_state"]
-    
-    t1, t2, t3, t4 = st.tabs([
+
+    t1, t2, t3, t4, t5 = st.tabs([
         "Node 1: Hybrid Context", 
         "Node 2: Multi-Agent Consensus", 
         "Node 3: Dual Analysis", 
-        "Node 4: Payload Assembly"
+        "Node 4: Payload Assembly",
+        "Node 5: Explainable AI Engine"
     ])
     
-    # ─────────────────────────────────────────────────────────────
-    # TAB 1: KNOWLEDGE GRAPH + LITERATURE ACCUMULATION
-    # ─────────────────────────────────────────────────────────────
     with t1:
         kg_relations = output_state.get("graph_knowledge", [])
         if not kg_relations:
@@ -86,7 +75,7 @@ if "pcos_output_state" in st.session_state:
         retrieved_payload = output_state.get("retrieved_chunks", [])
         text_papers = [x for x in retrieved_payload if isinstance(x, dict) and x.get("is_paper") is True]
         
-        st.markdown("### 🧬 Live Neo4j Knowledge Graph Pathway Extractor")
+        st.markdown("### Live Neo4j Knowledge Graph Pathway Extractor")
         
         if not kg_relations:
             st.info("No matching structural database pathways linked to current parameters.")
@@ -105,7 +94,7 @@ if "pcos_output_state" in st.session_state:
                 
             st.graphviz_chart(dot)
             
-        st.markdown("### 📚 Retracted Literary Grounding Context Matrices")
+        st.markdown("### Retracted Literary Grounding Context Matrices")
         if not text_papers:
             st.caption("No literature abstracts appended to active context layer.")
         else:
@@ -113,9 +102,7 @@ if "pcos_output_state" in st.session_state:
                 with st.expander(f"[{idx+1}] {paper.get('title', 'Untitled Abstract')}"):
                     st.write(paper.get('text', 'No text content available.'))
 
-    # ─────────────────────────────────────────────────────────────
-    # TAB 2: NODE 2 MULTI-AGENT REASONING OUTPUTS
-    # ─────────────────────────────────────────────────────────────
+
     with t2:
         st.markdown("### Synthesized Clinical Diagnostics Summary")
         agent_data = output_state.get("clinical_hypothesis", {})
@@ -140,10 +127,7 @@ if "pcos_output_state" in st.session_state:
                         st.markdown(f"* `{bio}`")
                 else:
                     st.write(biomarkers)
-        
-    # ─────────────────────────────────────────────────────────────
-    # TAB 3: NODE 3 ADVANCED SCORING MATRIX
-    # ─────────────────────────────────────────────────────────────
+
     with t3:
         st.markdown("### Algorithmic Evaluation Processing Engines")
         
@@ -166,8 +150,6 @@ if "pcos_output_state" in st.session_state:
             st.metric("Bayesian Update Score", f"{classical.get('bayesian_credibility_score', 0.0) * 100:.2f}%")
             st.markdown("**Posterior Credibility Interval Bounds (Beta Distribution):**")
             st.code(str(classical.get('confidence_interval_bounds', [])))
-            
-            # Access interpretation matching Node 3 dictionary mapping
             st.info(f"**Mathematical Integrity Evaluation:** {classical.get('interpretation', 'N/A')}")
             
         with c2:
@@ -175,43 +157,36 @@ if "pcos_output_state" in st.session_state:
             st.metric("Quantum Interaction Score (Simulated)", f"{quantum.get('quantum_interaction_score', 0.0)}")
             st.markdown("**Dominant Sub-circuit Basis Pattern Density:**")
             st.code(str(quantum.get('dominant_state_frequency', 0.0)))
-            
-            # Access interpretation matching Node 3 dictionary mapping
             st.info(f"**Quantum State Evaluation:** {quantum.get('interpretation', 'N/A')}")
             
         with st.expander("View Raw Circuit Simulated State Dictionary"):
             st.markdown("_Basis string states output generated from Qiskit Aer Statevector execution simulator loops (1024 shots)_")
             st.json(quantum.get('raw_counts', {}))
 
-    # ─────────────────────────────────────────────────────────────
-    # TAB 4: NODE 4 PAYLOAD ASSEMBLY & STRUCTURAL INTEGRITY
-    # ─────────────────────────────────────────────────────────────
     with t4:
-        st.markdown("### 🖥️ Unified Production Schema Verification")
+        st.markdown("###  Unified Production Schema Verification")
         st.markdown("_This node confirms alignment and safe variable typing before processing the Node 5 XAI algorithms._")
         
-        # Verify component presence using dashboard status alerts
         c1_schema, c2_schema, c3_schema = st.columns(3)
         with c1_schema:
             if output_state.get("clinical_hypothesis"):
-                st.success("✅ Node 2 Text Payload Linked")
+                st.success("Node 2 Text Payload Linked")
             else:
-                st.error("❌ Node 2 Hypothesis Missing")
+                st.error("Node 2 Hypothesis Missing")
                 
         with c2_schema:
             if output_state.get("classical_scores") and output_state.get("quantum_scores"):
-                st.success("✅ Node 3 Numeric Matrices Linked")
+                st.success(" Node 3 Numeric Matrices Linked")
             else:
-                st.error("❌ Node 3 Matrices Missing")
+                st.error("Node 3 Matrices Missing")
                 
         with c3_schema:
             if output_state.get("ici_metrics"):
-                st.success("✅ System Index Record Synchronized")
+                st.success(" System Index Record Synchronized")
             else:
-                st.warning("⚠️ ICI Metrics Record Unpopulated")
+                st.warning("ICI Metrics Record Unpopulated")
                 
         st.markdown("#### Complete Downstream Execution Payload Data Vector")
-        # Renders the exact payload that Node 5 will ingest
         st.json({
             "raw_input_shape": list(output_state.get("raw_input", {}).keys()),
             "clinical_hypothesis_keys": list(output_state.get("clinical_hypothesis", {}).keys()),
@@ -219,6 +194,67 @@ if "pcos_output_state" in st.session_state:
             "quantum_scores_keys": list(output_state.get("quantum_scores", {}).keys()),
             "ici_metrics_keys": list(output_state.get("ici_metrics", {}).keys())
         })
+
+    with t5:
+        st.markdown("### Game-Theoretic Attributions & Wavefunction Deconstruction")
+        
+        xai_metrics = output_state.get("xai_metrics", {})
+        xai_report = output_state.get("xai_report", "")
+        
+        if not xai_metrics:
+            st.warning("Explainability interpretation data missing from pipeline state context.")
+        else:
+            cx1, cx2 = st.columns([4, 3])
+            
+            with cx1:
+                st.markdown("#### Official Model-Agnostic Shapley Additive Values ($X_{patient}$ vs $X_{background}$)")
+                shap_data = xai_metrics.get("shap_importance_vectors", {})
+                
+                if shap_data:
+                    # Convert to dataframe for high-fidelity native charts
+                    df_shap = pd.DataFrame({
+                        "Biomedical Axis": list(shap_data.keys()),
+                        "Shapley Contribution Value": list(shap_data.values())
+                    }).sort_values(by="Shapley Contribution Value", ascending=True)
+                    
+                    st.bar_chart(
+                        data=df_shap, 
+                        x="Biomedical Axis", 
+                        y="Shapley Contribution Value", 
+                        use_container_width=True
+                    )
+                    st.caption("Positive vectors denote feature boundaries driving phenotype validation, negative values denote homeostatic protective factors.")
+                else:
+                    st.info("No SHAP values found.")
+                    
+            with cx2:
+                st.markdown("#### Quantum Information Spectrum Telemetry")
+                st.metric("Subsystem von Neumann Entropy", f"{xai_metrics.get('von_neumann_entropy', 0.0)} bits")
+                st.metric("Posterior Confidence Interval Dispersion Span", f"{xai_metrics.get('variance_span', 0.0)}")
+                
+                st.markdown("**Marginal Qubit Channel Activation Probabilities:**")
+                qubit_probs = xai_metrics.get("qubit_activation_probabilities", {})
+                for q_key, q_val in qubit_probs.items():
+                    st.markdown(f"* **{q_key}:** `{q_val}`")
+
+            st.markdown("---")
+            st.markdown("### Compiled Clinical Diagnostics Dossier Preview")
+            
+            # Render the rich markdown report string generated inside Node 5
+            if xai_report:
+                st.markdown(xai_report)
+                st.markdown("---")
+                
+                # Add download mechanism for your mentor presentation handover
+                st.download_button(
+                    label="Download Clinical Diagnostics & Explainability Report",
+                    data=xai_report,
+                    file_name=f"PCOS_XAI_Dossier_Case.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
+            else:
+                st.caption("No markdown report string detected inside state context.")
 else:
     st.info("Adjust patient biomarkers on the sidebar and click 'Trigger Advanced Execution Graph' to begin.")
 
