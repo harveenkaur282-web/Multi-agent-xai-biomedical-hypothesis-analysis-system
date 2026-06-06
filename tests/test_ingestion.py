@@ -49,8 +49,8 @@ def run_isolated_ingestion_test():
         graph_edges = [c for c in chunks if not (isinstance(c, dict) and c.get("is_paper"))]
         chunks_deposited = updated_state.get("retrieved_chunks", [])
         graph_data = updated_state.get("graph_knowledge", [])
-        print(f"└──  Graph Structure Edges: {len(graph_edges)}")
-        print(f"└──  PubMed Paper Abstracts Found: {len(papers_found)}\n")
+        print(f"|--  Graph Structure Edges: {len(graph_edges)}")
+        print(f"|--  PubMed Paper Abstracts Found: {len(papers_found)}\n")
         
         print("--- Detailed Abstract Manifest ---")
         if not papers_found:

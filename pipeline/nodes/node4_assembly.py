@@ -17,14 +17,30 @@ def node4_assembly_fn(state: PCOSState) -> Dict[str, Any]:
     retrieved_chunks = state.get("retrieved_chunks", [])
     graph_knowledge = state.get("graph_knowledge", [])
     clinical_hypothesis = state.get("clinical_hypothesis", {})
-    hypotheses = state.get("hypotheses", [])
+    
+    # 🌟 CRITICAL RESILIENCE GUARDRAIL: Safely catch NoneType states and normalize them
+    hypotheses = state.get("hypotheses")
+    if hypotheses is None:
+        hypotheses = []
+        
     classical_scores = state.get("classical_scores", {})
     quantum_scores = state.get("quantum_scores", {})
     ici_metrics = state.get("ici_metrics", {})
+    if ici_metrics is None:
+        ici_metrics = {}
 
     # 2. Extract keys for granular console tracking logs
     raw_input_keys = list(raw_input.keys()) if isinstance(raw_input, dict) else []
-    hypothesis_keys = list(clinical_hypothesis.keys()) if isinstance(clinical_hypothesis, dict) else []
+    
+    # Extract hypothesis fields from whichever key the data landed in safely
+    if isinstance(clinical_hypothesis, dict):
+        hypothesis_keys = list(clinical_hypothesis.keys())
+    elif hasattr(clinical_hypothesis, "clinical_hypothesis") and isinstance(clinical_hypothesis.clinical_hypothesis, dict):
+        # Handle cases where the dictionary is double-nested from the Node 2 return mapping
+        hypothesis_keys = list(clinical_hypothesis.clinical_hypothesis.keys())
+    else:
+        hypothesis_keys = []
+        
     classical_keys = list(classical_scores.keys()) if isinstance(classical_scores, dict) else []
     quantum_keys = list(quantum_scores.keys()) if isinstance(quantum_scores, dict) else []
 
@@ -44,15 +60,14 @@ def node4_assembly_fn(state: PCOSState) -> Dict[str, Any]:
     missing_signals = [signal for signal in required_quantum_signals if signal not in quantum_keys]
 
     if missing_signals:
-        print(f" [LINEAGE WARNING] Expected quantum structural metrics missing: {missing_signals}")
+        print(f"⚠️ [LINEAGE WARNING] Expected quantum structural metrics missing: {missing_signals}")
     else:
         print("[SCHEMA VERIFIED] Node 1 to Node 3 payload metrics certified for mathematical XAI mapping.")
 
-    # 5. Initialize clean baseline boundaries for Node 5 variables exactly as defined in PCOSState
+    # 5. Initialize downstream analytical state placeholders safely
     state["xai_metrics"] = {}
     state["xai_report"] = ""
 
     print("="*60 + "\n")
 
-    # Pass the unified, structurally locked state forward to Node 5
     return state

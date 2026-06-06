@@ -1,7 +1,6 @@
 import urllib.parse
 import requests
 
-# Paste your exact query from the log
 query = '("PCOS" OR "polycystic ovary syndrome") AND ("polycystic ovary morphology" OR "insulin" OR "oligomenorrhea" OR "hirsutism" OR "acne" OR "lh-fsh ratio")'
 safe_query = urllib.parse.quote(query)
 

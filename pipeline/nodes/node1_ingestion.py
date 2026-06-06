@@ -1,3 +1,5 @@
+import os
+import json
 import re
 import numpy as np
 import spacy
@@ -62,11 +64,15 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
     verified_entities = extract_biomedical_entities(remarks)
     print(f" [DIAGNOSTIC] SciSpacy Extracted Entities: {verified_entities}")
     # 2. QUERY LIVE NEO4J DATABASE FOR GRAPH CACHED MEDICAL PATHWAYS
-    db = Neo4jMedicalGraph()
-    kg_substructure = db.get_clinical_subgraph(verified_entities)
-    print(f"[DIAGNOSTIC] Neo4j Subgraph Raw Return: {kg_substructure}")
-    print(f"[RAG Ingestion Node] Successfully extracted {len(kg_substructure)} graph cached medical pathways.")
-    db.close() 
+    kg_substructure = []
+    try:
+        db = Neo4jMedicalGraph()
+        kg_substructure = db.get_clinical_subgraph(verified_entities)
+        print(f"[DIAGNOSTIC] Neo4j Subgraph Raw Return: {kg_substructure}")
+        print(f"[RAG Ingestion Node] Successfully extracted {len(kg_substructure)} graph cached medical pathways.")
+        db.close()
+    except Exception as e:
+        print(f"[Ingestion Node Error] Failed to initialize or query Neo4j: {e}") 
     
     if not isinstance(kg_substructure, list):
         kg_substructure = [kg_substructure] if kg_substructure else []
@@ -93,10 +99,22 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
             symptom_boolean_tokens.append(f'"{clean_ent}"')
             semantic_vector_tokens.append(clean_ent)
             
-    if float(raw_case.get("fasting_insulin", 0.0)) >= 14.0:
+    # Load dynamic thresholds from config
+    config_path = os.path.join("data", "pcos_thresholds.json")
+    try:
+        with open(config_path) as f:
+            config_data = json.load(f)
+            thresholds = config_data["lab_thresholds"]
+            insulin_threshold = float(thresholds["fasting_insulin_uiu_ml"]["elevated_min"])
+            lh_fsh_threshold = float(thresholds["lh_fsh_ratio"]["elevated_min"])
+    except Exception:
+        insulin_threshold = 14.0
+        lh_fsh_threshold = 2.0
+
+    if float(raw_case.get("fasting_insulin", 0.0)) >= insulin_threshold:
         symptom_boolean_tokens.append('"hyperinsulinemia"')
         semantic_vector_tokens.append("hyperinsulinemia")
-    if float(raw_case.get("lh_fsh_ratio", 0.0)) >= 2.0:
+    if float(raw_case.get("lh_fsh_ratio", 0.0)) >= lh_fsh_threshold:
         symptom_boolean_tokens.append('"lh-fsh ratio"')
         semantic_vector_tokens.append("lh-fsh ratio")
 

@@ -1,0 +1,25 @@
+{
+    "Q_table": {
+        "LOW_ENTROPY_LOW_VARIANCE": [
+            0.5,
+            0.5
+        ],
+        "LOW_ENTROPY_HIGH_VARIANCE": [
+            0.5,
+            0.5
+        ],
+        "HIGH_ENTROPY_LOW_VARIANCE": [
+            0.54,
+            0.5
+        ],
+        "HIGH_ENTROPY_HIGH_VARIANCE": [
+            0.5,
+            0.5
+        ]
+    },
+    "learning_rate": 0.2,
+    "discount_factor": 0.9,
+    "total_episodes_trained": 1,
+    "last_state": "HIGH_ENTROPY_LOW_VARIANCE",
+    "last_action": 0
+}

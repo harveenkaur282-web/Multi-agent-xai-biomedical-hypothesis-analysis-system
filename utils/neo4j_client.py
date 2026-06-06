@@ -9,21 +9,22 @@ class Neo4jMedicalGraph:
         self.user = os.getenv("NEO4J_USER")
         self.password = os.getenv("NEO4J_PASSWORD")
         if not all([self.uri, self.user, self.password]):
-            raise ValueError(
-                f"Critical Error: Environment variables missing from configuration mapping! "
-                f"Extracted: URI={self.uri}, USER={self.user}, PASSWORD={'***' if self.password else None}. "
-                f"Please check your project root directory for a valid .env file."
-            )
-        self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+            print("[Neo4j Warning] Environment variables missing. Graph extraction will be bypassed.")
+            self.driver = None
+        else:
+            self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
 
     def close(self):
-        self.driver.close()
+        if self.driver:
+            self.driver.close()
 
     def get_clinical_subgraph(self, extracted_entities: list) -> list:
         """
         Dynamically queries the database to find multi-hop biological pathways 
         connecting the patient's symptoms back to the target condition.
         """
+        if not self.driver:
+            return []
         query = """
         MATCH (d:Condition {name: 'PCOS'})
         MATCH (s:Phenotype) WHERE s.name IN $entities

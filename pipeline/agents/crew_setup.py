@@ -1,9 +1,13 @@
 # pipeline/agents/crew_setup.py
+import os
 import json
 import re
+from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
 from pydantic import BaseModel, Field
 from typing import List
+
+load_dotenv()
 
 class ConsensusHypothesisModel(BaseModel):
     phenotype_assessment: str = Field(..., description="Calculated PCOS phenotype configuration classification.")
@@ -21,31 +25,47 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
     except (AttributeError, ValueError):
         bmi, insulin, lh_fsh = 24.5, 14.2, 2.1 
         
+    # Load dynamic thresholds from configuration
+    config_path = os.path.join("data", "pcos_thresholds.json")
+    try:
+        with open(config_path) as f:
+            config_data = json.load(f)
+            thresholds = config_data["lab_thresholds"]
+            insulin_threshold = float(thresholds["fasting_insulin_uiu_ml"]["elevated_min"])
+            bmi_threshold = float(thresholds["bmi"]["elevated_min"])
+            lh_fsh_threshold = float(thresholds["lh_fsh_ratio"]["elevated_min"])
+    except Exception:
+        insulin_threshold = 14.0
+        bmi_threshold = 25.0
+        lh_fsh_threshold = 2.0
+
     # Build strict clinical guardrails
     insulin_guard = (
-        "CRITICAL RULE: Fasting Insulin is OPTIMAL (< 10 uIU/mL). The patient is completely INSULIN SENSITIVE. "
+        f"CRITICAL RULE: Fasting Insulin is OPTIMAL (< {insulin_threshold} uIU/mL). The patient is completely INSULIN SENSITIVE. "
         "Do NOT diagnose insulin resistance, impaired glucose tolerance, or metabolic syndrome."
-        if insulin < 10 else 
-        "CRITICAL RULE: Fasting Insulin is ELEVATED (>= 10 uIU/mL). The patient exhibits metabolic hyperinsulinemia."
+        if insulin < insulin_threshold else 
+        f"CRITICAL RULE: Fasting Insulin is ELEVATED (>= {insulin_threshold} uIU/mL). The patient exhibits metabolic hyperinsulinemia."
     )
     
     phenotype_guard = (
-        "CRITICAL RULE: Patient has a low/normal BMI (< 25). This points to an isolated Lean/Neuro-Endocrine Phenotype (Phenotype B). "
+        f"CRITICAL RULE: Patient has a low/normal BMI (< {bmi_threshold}). This points to an isolated Lean/Neuro-Endocrine Phenotype (Phenotype B). "
         "Focus entirely on gonadotropin acceleration and HPO axis drive."
-        if bmi < 25 else 
-        "CRITICAL RULE: Patient has an elevated BMI (>= 25). Focus on adiposity-driven metabolic amplification."
+        if bmi < bmi_threshold else 
+        f"CRITICAL RULE: Patient has an elevated BMI (>= {bmi_threshold}). Focus on adiposity-driven metabolic amplification."
     )
 
-    # 🌟 RL STRATEGY POLICY INJECTION
     if selected_action == 1:
         strategy_modifier = "POLICY ENFORCEMENT: Prioritize parsing subtle metabolic defects, downstream insulin signal transduction resistance, and peripheral fatty acid vectors."
     else:
         strategy_modifier = "POLICY ENFORCEMENT: Prioritize evaluation of core classical diagnostic variables, ovarian androgen synthesis, and follicle counts."
 
+    env_model = os.getenv("LLM_MODEL", "ollama/llama3.2:3b")
+    env_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
     local_ollama = LLM(
-        model="ollama/llama3.2:3b",  
-        base_url="http://localhost:11434",
-        timeout=300,                  
+        model=env_model,  
+        base_url=env_base_url,
+        timeout=120,
         temperature=0.1
     )
 
@@ -81,9 +101,10 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
             f"Analyze patient profile:\n{patient_data}\n\n"
             f"Deterministic Neo4j Pathways:\n{graph_context}\n\n"
             f"Literature Context:\n{literature_context}\n\n"
+            f"[CONTEXT INSTRUCTION]: If Literature Context or Neo4j Pathways are empty or explicitly declared empty, rely explicitly on your baseline pathophysiological knowledge.\n\n"
             f"[MANDATORY DIAGNOSTIC LIMITS]\n"
             f"- {phenotype_guard}\n"
-            f"- LH/FSH Ratio: {lh_fsh} (Normal is ~1:1, >2:1 indicates significant hypothalamic overdrive).\n\n"
+            f"- LH/FSH Ratio: {lh_fsh} (Normal is ~1:1, >{lh_fsh_threshold}:1 indicates significant hypothalamic overdrive).\n\n"
             "Task: Map out the neuroendocrine axis defects causing follicular arrest. Do not comment on metabolic syndrome vectors."
         ),
         expected_output="An evaluation of pituitary-ovarian dysfunction based strictly on the metrics provided.",
@@ -108,6 +129,7 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
             "Review findings from the specialists carefully. Synthesize a structured biomedical hypothesis statement "
             "that links the patient inputs to the active pathways. "
             "Ensure that if the metabolic pathologist found no metabolic risks, the primary risk factor reflects an endocrine axis shift. "
+            "If external literature context is explicitly empty, rely entirely on core medical baseline reasoning. "
             "CRITICAL: Output your findings exclusively in raw valid JSON matching the schema. Do not include markdown conversational filler."
         ),
         expected_output="A perfectly formatted JSON layout outlining final clinical conclusions matching the schemas.",
@@ -136,7 +158,6 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
                 cleaned_raw = cleaned_raw.split("```json")[1].split("```")[0].strip()
             output_dict = json.loads(cleaned_raw)
             
-        # Ensure the selected policy action index is stored in the dictionary state
         output_dict["selected_action_policy"] = selected_action
         return output_dict
         

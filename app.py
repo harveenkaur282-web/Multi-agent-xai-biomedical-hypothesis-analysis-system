@@ -1,11 +1,12 @@
 import streamlit as st
 import graphviz
 import pandas as pd
+import requests
 from pipeline.graph import build_pcos_pipeline
 
 st.set_page_config(page_title="PCOS Multi-Agent XAI Dashboard", layout="wide")
 
-st.title(" PCOS Multi-Agent XAI Diagnostics Framework")
+st.title("PCOS Multi-Agent XAI Diagnostics Framework")
 st.markdown("---")
 
 st.sidebar.header("Patient Clinical Intake Panel")
@@ -27,7 +28,6 @@ clinical_remarks = st.sidebar.text_area(
     value="Patient presents with severe, treatment-resistant inflammatory acne along the jawline and neck. Reports a history of profound oligomenorrhea, experiencing only 3 irregular menstrual periods in the past 12 months. Transvaginal pelvic ultrasound reveals marked bilateral polycystic ovary morphology with an antral follicle count of 22 on the left and 26 on the right, presenting a classic string-of-pearls arrangement."
 )
 
-# Comprehensive data vector matching state models
 user_input_case = {
     "age": age,
     "bmi": bmi,
@@ -39,18 +39,25 @@ user_input_case = {
     "clinical_remarks": clinical_remarks
 }
 
-# Instantiate the compilation engine once at startup
-pipeline_executor = build_pcos_pipeline()
+@st.cache_resource
+def get_pipeline():
+    return build_pcos_pipeline()
+
+pipeline_executor = get_pipeline()
 
 st.subheader("Patient Clinical Profile Data Vector")
 st.json(user_input_case)
 
-# Trigger Button updates the Session State
 if st.button("Trigger Advanced Execution Graph", type="primary"):
+    try:
+        req = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if req.status_code != 200:
+            st.warning("Ollama API returned an unexpected status. System may rely on fallback data.")
+    except Exception:
+        st.warning("Ollama local LLM is offline or unreachable. System will rely on mock fallback logic.")
+        
     with st.spinner("Processing local multi-agent consensus loops and quantum parameters..."):
-        # Invoke the LangGraph pipeline
         output_payload = pipeline_executor.invoke({"raw_input": user_input_case})
-        # Stash the payload safely in persistent state cache
         st.session_state["pcos_output_state"] = output_payload
         st.success("Execution Complete!")
 
@@ -59,14 +66,14 @@ st.markdown("---")
 if "pcos_output_state" in st.session_state:
     output_state = st.session_state["pcos_output_state"]
 
-    t1, t2, t3, t4, t5 = st.tabs([
+    t1, t2, t3, t4, t5, t6 = st.tabs([
         "Node 1: Hybrid Context", 
         "Node 2: Multi-Agent Consensus", 
         "Node 3: Dual Analysis", 
         "Node 4: Payload Assembly",
-        "Node 5: Explainable AI Engine"
+        "Node 5: Explainable AI Engine",
+        "Node 6: RL Policy Ranking"
     ])
-    
     with t1:
         kg_relations = output_state.get("graph_knowledge", [])
         if not kg_relations:
@@ -101,7 +108,6 @@ if "pcos_output_state" in st.session_state:
             for idx, paper in enumerate(text_papers):
                 with st.expander(f"[{idx+1}] {paper.get('title', 'Untitled Abstract')}"):
                     st.write(paper.get('text', 'No text content available.'))
-
 
     with t2:
         st.markdown("### Synthesized Clinical Diagnostics Summary")
@@ -159,12 +165,33 @@ if "pcos_output_state" in st.session_state:
             st.code(str(quantum.get('dominant_state_frequency', 0.0)))
             st.info(f"**Quantum State Evaluation:** {quantum.get('interpretation', 'N/A')}")
             
+            st.markdown("#### Live Quantum State Amplitude Spectrum")
+            raw_counts = quantum.get('raw_counts', {})
+
+            if raw_counts:
+               
+                df_quantum = pd.DataFrame({
+                    "Quantum Computational Basis State (|ψ⟩)": [f"|{k}⟩" for k in raw_counts.keys()],
+                    "Measurement Shot Frequency": list(raw_counts.values())
+                })
+                
+                st.bar_chart(
+                    data=df_quantum,
+                    x="Quantum Computational Basis State (|ψ⟩)",
+                    y="Measurement Shot Frequency",
+                    use_container_width=True
+                )
+                st.caption("The variation in basis state amplitudes represents the constructive and destructive interference patterns calculated across the mapped patient feature space.")
+            else:
+                st.info("No quantum state count distribution available.")
+
+       
         with st.expander("View Raw Circuit Simulated State Dictionary"):
             st.markdown("_Basis string states output generated from Qiskit Aer Statevector execution simulator loops (1024 shots)_")
             st.json(quantum.get('raw_counts', {}))
 
     with t4:
-        st.markdown("###  Unified Production Schema Verification")
+        st.markdown("### Unified Production Schema Verification")
         st.markdown("_This node confirms alignment and safe variable typing before processing the Node 5 XAI algorithms._")
         
         c1_schema, c2_schema, c3_schema = st.columns(3)
@@ -176,13 +203,13 @@ if "pcos_output_state" in st.session_state:
                 
         with c2_schema:
             if output_state.get("classical_scores") and output_state.get("quantum_scores"):
-                st.success(" Node 3 Numeric Matrices Linked")
+                st.success("Node 3 Numeric Matrices Linked")
             else:
                 st.error("Node 3 Matrices Missing")
                 
         with c3_schema:
             if output_state.get("ici_metrics"):
-                st.success(" System Index Record Synchronized")
+                st.success("System Index Record Synchronized")
             else:
                 st.warning("ICI Metrics Record Unpopulated")
                 
@@ -211,7 +238,6 @@ if "pcos_output_state" in st.session_state:
                 shap_data = xai_metrics.get("shap_importance_vectors", {})
                 
                 if shap_data:
-                    # Convert to dataframe for high-fidelity native charts
                     df_shap = pd.DataFrame({
                         "Biomedical Axis": list(shap_data.keys()),
                         "Shapley Contribution Value": list(shap_data.values())
@@ -240,12 +266,10 @@ if "pcos_output_state" in st.session_state:
             st.markdown("---")
             st.markdown("### Compiled Clinical Diagnostics Dossier Preview")
             
-            # Render the rich markdown report string generated inside Node 5
             if xai_report:
                 st.markdown(xai_report)
                 st.markdown("---")
                 
-                # Add download mechanism for your mentor presentation handover
                 st.download_button(
                     label="Download Clinical Diagnostics & Explainability Report",
                     data=xai_report,
@@ -255,12 +279,69 @@ if "pcos_output_state" in st.session_state:
                 )
             else:
                 st.caption("No markdown report string detected inside state context.")
+
+    with t6:
+        st.markdown("### Bellman Optimality & Policy Trajectory Tuning")
+        st.markdown("_This engine tracks state-action updates across iterations, modifying agent parameters via closed feedback loops._")
+        
+        rl_data = output_state.get("rl_policy_metadata", {})
+        
+        if not rl_data:
+            st.warning("Reinforcement learning policy trajectory telemetry missing from graph execution context.")
+        else:
+            rc1, rc2, rc3 = st.columns(3)
+            
+            with rc1:
+                # Highlight the reward score calculated on the environment state vector
+                reward_val = rl_data.get("calculated_reward", 0.0)
+                st.metric(
+                    label="Computed Step Reward Signal R(s,a)", 
+                    value=f"{reward_val:.4f}",
+                    delta="Optimal Trajectory Confirmed" if reward_val >= 0.4 else "Suboptimal Step Path Altered",
+                    delta_color="normal" if reward_val >= 0.4 else "inverse"
+                )
+                
+            with rc2:
+                # Show the convergent Q-Value for the state-action pair
+                st.metric(
+                    label="Temporal Difference Matrix Q-Value", 
+                    value=f"{rl_data.get('updated_q_value', 0.0)}"
+                )
+                
+            with rc3:
+                # Track persistent execution cycles completed over the lifetime of the dashboard
+                st.metric(
+                    label="Total Policy Training Epochs", 
+                    value=f"{rl_data.get('total_training_cycles', 0)}"
+                )
+                
+            st.markdown("---")
+            
+            c_bot1, c_bot2 = st.columns([1, 1])
+            with c_bot1:
+                st.info("#### Discretized Environment State Mapping")
+                st.markdown(f"Active Discretization Sector: `{rl_data.get('current_state_discretization', 'N/A')}`")
+                st.caption("State vector space boundaries map directly onto downstream multi-node quantum entropy and statistical distribution variance scales.")
+                
+            with c_bot2:
+                st.success("#### Running Policy Optimization Strategy")
+                action_idx = rl_data.get("chosen_action_index", 0)
+                action_desc = "Action 1: Aggressive Metabolic Focus" if action_idx == 1 else "Action 0: Balanced Clinical Core"
+                st.markdown(f"Executed Routing Path: **{action_desc}**")
+                st.markdown(f"Graph Decision Status: `{rl_data.get('policy_action_rank', 'N/A')}`")
+
 else:
     st.info("Adjust patient biomarkers on the sidebar and click 'Trigger Advanced Execution Graph' to begin.")
 
+@st.cache_data
+def get_graph_image():
+    # draw_mermaid_png() makes a network request to an external API!
+    # Caching this prevents the entire UI from hanging on every slider interaction.
+    return pipeline_executor.get_graph().draw_mermaid_png()
+
 with st.sidebar.expander("View LangGraph Operational Topology", expanded=False):
     try:
-        png_bytes = pipeline_executor.get_graph().draw_mermaid_png()
+        png_bytes = get_graph_image()
         st.image(png_bytes, caption="Active Operational Pipeline")
     except Exception:
         st.caption("Displaying fallback architectural node activation list:")

@@ -9,7 +9,7 @@ This serves as a transparent decision-support tool where the entire "thought pro
 
 ---
 
-## ⚙️ Pipeline Architecture: The Execution Nodes
+## Pipeline Architecture: The Execution Nodes
 
 The system operates over a deterministic state graph defined by three core computational nodes and an auditing mechanism:
 
@@ -27,11 +27,23 @@ The system operates over a deterministic state graph defined by three core compu
     1. **Bayesian Prior Update (Classical):** Calculates a statistical credibility score and posterior interval bounds using Beta distributions, offering a probabilistic measure of the hypothesis's reliability.
     2. **Quantum Plausibility Weighting (Simulated):** Leverages quantum state distribution simulations (sub-circuit basis pattern density) as a proxy metric for hypothesis complexity and structural plausibility.
 
+### **Node 4: Payload Assembly & Schema Verification**
+* **Functional Role:** Validates structural data and mathematical metrics from Nodes 1, 2, and 3.
+* **Technical Implementation:** Ensures pipeline schema alignment before handing off the consolidated diagnostics to the Explainable AI engine.
+
+### **Node 5: Explainable AI Engine & Quantum Decoding**
+* **Functional Role:** Generates human-readable game-theoretic explanations and interprets mathematical constraints.
+* **Technical Implementation:** Computes official KernelSHAP feature attributions using an extended background matrix and compiles the final Clinical Diagnostic Dossier.
+
+### **Node 6: Reinforcement Learning (RL) Policy Ranker**
+* **Functional Role:** Evaluates the Multi-Agent strategy and optimizes the execution loop.
+* **Technical Implementation:** Uses temporal-difference Q-learning to reward or penalize upstream prompts based on diagnostic entropy. Includes hard loop guardrails to prevent recursive inference.
+
 *(Note: An `AuditInterceptorNode` ensures all state transitions and metric outputs are logged into a persistent audit trail for compliance and review).*
 
 ---
 
-## 📊 Computational Graph Flowchart
+##  Computational Graph Flowchart
 
 ```mermaid
 graph TD
@@ -52,7 +64,7 @@ graph TD
 
 ---
 
-## 🎓 Academic Defense: Potential Cross-Questioning
+## Academic Defense: Potential Cross-Questioning
 
 If you are presenting this to a professor or evaluation committee, anticipate the following technical questions:
 
