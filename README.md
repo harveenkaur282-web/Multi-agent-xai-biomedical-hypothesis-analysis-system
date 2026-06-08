@@ -68,8 +68,6 @@ graph TD
 
 ## Academic Defense: Potential Cross-Questioning
 
-If you are presenting this to a professor or evaluation committee, anticipate the following technical questions:
-
 **Q1: What is the architectural advantage of using a Multi-Agent system over a single advanced LLM for diagnosis?**
 * **Defense:** A single LLM acts as a monolithic black box, prone to compounding errors and hallucinations, particularly in highly specialized domains like biomedicine. A multi-agent architecture introduces compartmentalization and consensus-building. By dividing the workload (e.g., one agent focusing on literature retrieval, another on phenotypic classification), we mimic a multidisciplinary medical board, yielding hypotheses that are cross-validated and significantly more robust.
 
