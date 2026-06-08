@@ -1,6 +1,8 @@
 # Multi-Agent XAI Biomedical Hypothesis Analysis System
 
-## 🔬 System Overview
+Extracted from my previous repository with the same name- for a simplified application without have knowledge graphs-hetionet, primekg as data sources. 
+
+## System Overview
 This project presents an advanced **Multi-Agent Explainable AI (XAI) Diagnostic Framework** designed for the analysis of Polycystic Ovary Syndrome (PCOS). Built using `LangGraph` for stateful execution, the system models the clinical diagnostic process as an iterative, multi-node computational graph. 
 
 Instead of relying on a single Large Language Model (LLM) which is susceptible to hallucinations and biases, this architecture employs Retrieval-Augmented Generation (RAG) for biomedical literature grounding, Multi-Agent Consensus for hypothesis generation, and Dual Mathematical Evaluation (Classical Bayesian & Simulated Quantum) to computationally verify the integrity and confidence of the generated clinical hypothesis.
