@@ -28,13 +28,27 @@ class Neo4jMedicalGraph:
         query = """
         MATCH (d:Condition {name: 'PCOS'})
         MATCH (s:Phenotype) WHERE s.name IN $entities
-        MATCH path = shortestPath((d)-[:ASSOCIATED_WITH|DRIVES|PART_OF*1..3]-(s))
-        UNWIND nodes(path) AS node
+
+        // Find ALL paths up to 4 hops to capture intermediate Pathway nodes
+        MATCH path = (d)-[:ASSOCIATED_WITH|DRIVES|PART_OF*1..4]-(s)
+
+        // Return all relationships in the path
         UNWIND relationships(path) AS rel
+
         RETURN DISTINCT 
-            startNode(rel).name AS source, 
-            endNode(rel).name AS target, 
-            type(rel) AS relationship_type
+        startNode(rel).name AS source, 
+        endNode(rel).name AS target, 
+        type(rel) AS relationship_type,
+        labels(startNode(rel)) AS source_label,
+        labels(endNode(rel)) AS target_label
+
+        // Order DRIVES relationships first (mechanistic pathways)
+        ORDER BY 
+            CASE 
+                WHEN type(rel) = 'DRIVES' THEN 1
+                WHEN type(rel) = 'ASSOCIATED_WITH' THEN 2
+                WHEN type(rel) = 'PART_OF' THEN 3
+            END
         """
         subgraph_payload = []
         try:
