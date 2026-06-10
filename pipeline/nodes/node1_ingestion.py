@@ -10,7 +10,6 @@ from pipeline.state import PCOSState
 from utils.pubmed_client import search_pubmed_pcos
 from utils.neo4j_client import Neo4jMedicalGraph 
 
-# Initialize SpaCy Medical NER
 try:
     nlp = spacy.load("en_ner_bc5cdr_md")
 except OSError:
@@ -18,7 +17,6 @@ except OSError:
     spacy.cli.download("en_ner_bc5cdr_md")
     nlp = spacy.load("en_ner_bc5cdr_md")
 
-# Global Initialization
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def tokenize(text: str) -> list:
@@ -38,7 +36,7 @@ def extract_biomedical_entities(text: str) -> list:
             continue
         ent_end = ent_start + len(ent_lower)
         
-        # 🛡️ BIDIRECTIONAL NEGATION & OPTIMALITY GUARD WINDOW
+        # BIDIRECTIONAL NEGATION & OPTIMALITY GUARD WINDOW
         look_back = text_lower[max(0, ent_start - 30):ent_start]
         look_ahead = text_lower[ent_end:min(len(text_lower), ent_end + 40)]
         full_context = look_back + " [ENTITY] " + look_ahead
@@ -50,14 +48,38 @@ def extract_biomedical_entities(text: str) -> list:
         if ent_lower in ["treatment-resistant", "bilateral", "chronic", "prominent"]:
             continue
             
-        # 🚀 FIX: Feed both variants to make sure Neo4j property matches succeed regardless of index configuration
+        # FIX: Feed both variants to make sure Neo4j property matches succeed regardless of index configuration
         discovered.append(ent.text.title())
         discovered.append(ent.text.lower())
         
     return list(set(discovered))
 
 def node1_ingestion_fn(state: PCOSState) -> dict:
-    raw_case = state["raw_input"]
+    raw_case = dict(state["raw_input"])
+    
+    # Schema Adapter: Flatten nested labs if present (e.g. from mock_patients.json)
+    if "labs" in raw_case and isinstance(raw_case["labs"], dict):
+        labs = raw_case["labs"]
+        mapping = {
+            "fasting_insulin_uiu_ml": ["fasting_insulin"],
+            "lh_fsh_ratio": ["lh_fsh_ratio"],
+            "testosterone_ng_dl": ["free_testosterone", "testosterone"],
+            "free_testosterone": ["free_testosterone", "testosterone"],
+            "testosterone": ["free_testosterone", "testosterone"],
+            "amh_ng_ml": ["amh_levels"],
+            "amh_levels": ["amh_levels"],
+            "homa_ir": ["homa_ir"],
+        }
+        for nested_key, flat_keys in mapping.items():
+            if nested_key in labs:
+                for fk in flat_keys:
+                    if fk not in raw_case:
+                        raw_case[fk] = labs[nested_key]
+        if "bmi" in labs and "bmi" not in raw_case:
+            raw_case["bmi"] = labs["bmi"]
+            
+    state["raw_input"] = raw_case
+
     
     # 1. RUN THE SCI-SPACY NER PARSING LAYER WITH DUAL-WINDOW NEGATION FILTERS
     remarks = raw_case.get("clinical_remarks", "")
@@ -131,9 +153,25 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
     print(f"[RAG Ingestion] Production Vector Target: '{semantic_vector_query}'")
     
     # 4. RUN LIVE API WEB SEARCH RETRIEVAL USING THE CLEANED QUERY
-    raw_api_response = search_pubmed_pcos(api_search_query)
-    
-    documents = raw_api_response if isinstance(raw_api_response, list) else []
+    # Fallback to local pubmed_cache.json if API fails after all 3 retry attempts
+    # or if the live search returns 0 results.
+    raw_api_response = []
+    try:
+        raw_api_response = search_pubmed_pcos(api_search_query)
+    except Exception as api_err:
+        print(f"[RAG Ingestion] PubMed live API failed: {api_err}. Loading local cache fallback.")
+
+    documents = raw_api_response if isinstance(raw_api_response, list) and raw_api_response else []
+
+    if not documents:
+        cache_path = os.path.join("data", "pubmed_cache.json")
+        try:
+            with open(cache_path, "r") as cache_file:
+                documents = json.load(cache_file)
+            print(f"[RAG Ingestion] Loaded {len(documents)} papers from local pubmed_cache.json fallback.")
+        except Exception as cache_err:
+            print(f"[RAG Ingestion] Local cache also unavailable: {cache_err}")
+            documents = []
 
     # =========================================================================
     # 5. ADVANCED HYBRID SEARCH: DENSE EMBEDDINGS (TRANSFORMERS) + SPARSE (BM25)

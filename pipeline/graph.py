@@ -5,7 +5,7 @@ from pipeline.nodes.node2_hypothesis import node2_hypothesis_fn
 from pipeline.nodes.node3_dual_analysis import node3_dual_analysis_fn
 from pipeline.nodes.node4_assembly import node4_assembly_fn  
 from pipeline.nodes.node5_xai import node5_xai_fn 
-from pipeline.nodes.node6_rl_ranking import node6_rl_ranking_fn, rl_policy_router_fn
+from pipeline.nodes.node6_rl_ranking import node6_rl_ranking_fn
 from utils.audit_logger import log_run
 
 def build_pcos_pipeline():
@@ -31,14 +31,7 @@ def build_pcos_pipeline():
         
     workflow.add_node("AuditInterceptorNode", run_audit_interceptor)
 
-    workflow.add_conditional_edges(
-        "RLPolicyRankingNode",
-        rl_policy_router_fn,
-        {
-            "node2_hypothesis": "HypothesisNode",   
-            "__end__": "AuditInterceptorNode"      
-        }
-    )
+    workflow.add_edge("RLPolicyRankingNode", "AuditInterceptorNode")
     
     workflow.add_edge("AuditInterceptorNode", END)
     return workflow.compile()

@@ -1,4 +1,3 @@
-# pipeline/agents/crew_setup.py
 import os
 import json
 import re
@@ -163,11 +162,15 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
         
     except Exception as e:
         print(f"Fallback active due to local parsing exception: {e}")
+        is_lean = bmi < bmi_threshold
+        phenotype = "Lean PCOS / Neuroendocrine Dominant (Phenotype B)" if is_lean else "Classic / Metabolic PCOS (Phenotype A)"
+        primary_risk = "Neuroendocrine Axis Hyperactivity" if is_lean else "Metabolic/Insulin Axis Dysfunction"
+        biomarkers = ["LH/FSH Ratio", "Free Testosterone", "AMH Tracking"] if is_lean else ["Fasting Insulin", "HOMA-IR", "BMI Tracking"]
         return {
-            "phenotype_assessment": "Lean PCOS / Neuroendocrine Dominant (Phenotype B)",
-            "clinical_hypothesis": f"Accelerated gonadotropin-releasing hormone pulsatility disrupts pituitary balance. Run enforced via context mode: {selected_action}.",
-            "primary_risk_factor": "Neuroendocrine Axis Hyperactivity",
-            "agent_confidence_level": "High",
-            "recommended_biomarkers": ["LH/FSH Ratio", "Free Testosterone", "AMH Tracking"],
+            "phenotype_assessment": phenotype,
+            "clinical_hypothesis": f"Fallback diagnostics based on clinical threshold rules. Est. Phenotype: {phenotype}.",
+            "primary_risk_factor": primary_risk,
+            "agent_confidence_level": "Medium",
+            "recommended_biomarkers": biomarkers,
             "selected_action_policy": selected_action
         }

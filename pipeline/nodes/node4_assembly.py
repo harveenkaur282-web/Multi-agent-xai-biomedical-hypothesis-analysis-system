@@ -1,4 +1,3 @@
-# pipeline/nodes/node4_assembly.py
 from typing import Dict, Any
 from pipeline.state import PCOSState
 
@@ -60,7 +59,7 @@ def node4_assembly_fn(state: PCOSState) -> Dict[str, Any]:
     missing_signals = [signal for signal in required_quantum_signals if signal not in quantum_keys]
 
     if missing_signals:
-        print(f"⚠️ [LINEAGE WARNING] Expected quantum structural metrics missing: {missing_signals}")
+        print(f"[LINEAGE WARNING] Expected quantum structural metrics missing: {missing_signals}")
     else:
         print("[SCHEMA VERIFIED] Node 1 to Node 3 payload metrics certified for mathematical XAI mapping.")
 

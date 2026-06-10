@@ -184,7 +184,14 @@ def node3_dual_analysis_fn(state: PCOSState) -> dict:
     quantum_score   = quantum_summary.get("quantum_interaction_score", 0.0)
 
     # ── ICI fusion ──────────────────────────────────────────────────────────
-    ici_score = float((0.5 * classical_credibility) + (0.5 * quantum_score))
+    # Fix 6.2.1: Asymmetric weighting reflects relative scientific grounding.
+    # Bayesian posterior (70%) is derived from validated clinical threshold data
+    # (Rotterdam Criteria 2003 / ADA 2023); VQC score (30%) is a novel
+    # high-dimensional plausibility signal executed on a classical simulator —
+    # informative but not yet independently validated for clinical use.
+    _BAYESIAN_WEIGHT = 0.70
+    _QUANTUM_WEIGHT  = 0.30
+    ici_score = float((_BAYESIAN_WEIGHT * classical_credibility) + (_QUANTUM_WEIGHT * quantum_score))
     interpretations = interpret_node3_results(classical_summary, quantum_summary, ici_score)
 
     return {

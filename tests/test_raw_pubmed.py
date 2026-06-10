@@ -6,7 +6,7 @@ safe_query = urllib.parse.quote(query)
 
 url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={safe_query}&retmode=json&retmax=5"
 
-print("📡 Pinging PubMed directly via raw requests...")
+print("[PubMed Network] Pinging PubMed directly via raw requests...")
 res = requests.get(url)
 print(f"Status: {res.status_code}")
 print(f"Payload Response: {res.text}")

@@ -1,25 +1,22 @@
 {
     "Q_table": {
-        "LOW_ENTROPY_LOW_VARIANCE": [
+        "NORMAL_METABOLIC_NORMAL_GONADOTROPIN": [
             0.5,
             0.5
         ],
-        "LOW_ENTROPY_HIGH_VARIANCE": [
+        "NORMAL_METABOLIC_HIGH_GONADOTROPIN": [
             0.5,
             0.5
         ],
-        "HIGH_ENTROPY_LOW_VARIANCE": [
-            0.54,
-            0.5
-        ],
-        "HIGH_ENTROPY_HIGH_VARIANCE": [
+        "HIGH_METABOLIC_NORMAL_GONADOTROPIN": [
             0.5,
             0.5
+        ],
+        "HIGH_METABOLIC_HIGH_GONADOTROPIN": [
+            0.5,
+            0.481
         ]
     },
     "learning_rate": 0.2,
-    "discount_factor": 0.9,
-    "total_episodes_trained": 1,
-    "last_state": "HIGH_ENTROPY_LOW_VARIANCE",
-    "last_action": 0
+    "total_episodes_trained": 1
 }

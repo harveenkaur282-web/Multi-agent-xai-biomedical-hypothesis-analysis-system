@@ -26,7 +26,9 @@ def log_run(state: dict) -> str:
         "node2_consensus":  state.get("clinical_hypothesis", {}),
         "node3_classical":  state.get("classical_scores", {}),
         "node3_quantum":    state.get("quantum_scores", {}),
-        "node4_fused":      state.get("fused_result", {})
+        "node3_ici":        state.get("ici_metrics", {}),
+        "node5_xai_metrics":state.get("xai_metrics", {}),
+        "node5_xai_report": state.get("xai_report", "")
     }
     
     with open(filepath, "w") as f:

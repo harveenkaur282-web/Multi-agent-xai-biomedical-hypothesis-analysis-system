@@ -1,4 +1,3 @@
-# pipeline/nodes/node2_hypothesis.py
 import os
 import json
 import random
@@ -8,29 +7,70 @@ from pipeline.agents.crew_setup import run_pcos_debate
 
 POLICY_FILE = "utils/rl_policy_matrix.json"
 
+def _get_patient_state(lh_fsh: float, insulin: float) -> str:
+    """
+    Discretises the patient's clinical profile into one of four Q-table states
+    using validated diagnostic thresholds loaded from pcos_thresholds.json.
+    These same four states are used by Node 6 when writing Q-value updates,
+    ensuring a consistent state representation across the full RL loop.
+
+    States:
+        NORMAL_METABOLIC_NORMAL_GONADOTROPIN  — baseline / lean phenotype (low severity)
+        NORMAL_METABOLIC_HIGH_GONADOTROPIN    — isolated neuroendocrine axis overdrive
+        HIGH_METABOLIC_NORMAL_GONADOTROPIN    — isolated insulin/metabolic pathway issue
+        HIGH_METABOLIC_HIGH_GONADOTROPIN      — full classical PCOS phenotype (high severity)
+    """
+    config_path = os.path.join("data", "pcos_thresholds.json")
+    try:
+        with open(config_path) as f:
+            thresholds = json.load(f)["lab_thresholds"]
+        insulin_threshold = float(thresholds["fasting_insulin_uiu_ml"]["elevated_min"])
+        lh_fsh_threshold  = float(thresholds["lh_fsh_ratio"]["elevated_min"])
+    except Exception:
+        insulin_threshold = 14.0
+        lh_fsh_threshold  = 2.0
+
+    high_metabolic    = insulin >= insulin_threshold
+    high_gonadotropin = lh_fsh  >= lh_fsh_threshold
+
+    if high_metabolic and high_gonadotropin:
+        return "HIGH_METABOLIC_HIGH_GONADOTROPIN"
+    elif high_metabolic:
+        return "HIGH_METABOLIC_NORMAL_GONADOTROPIN"
+    elif high_gonadotropin:
+        return "NORMAL_METABOLIC_HIGH_GONADOTROPIN"
+    else:
+        return "NORMAL_METABOLIC_NORMAL_GONADOTROPIN"
+
+
 def read_rl_action_policy(lh_fsh: float, insulin: float) -> int:
-    """Reads the persistent matrix and picks the optimal agent action path (0 or 1)."""
+    """Reads the persistent matrix and picks the optimal agent action path (0 or 1).
+    
+    Uses a clinically grounded 4-state discretization based on patient biomarkers
+    that are available at the start of the pipeline, ensuring the state used for
+    action selection matches the state updated by Node 6 at the end.
+    """
+    estimated_state = _get_patient_state(lh_fsh, insulin)
+
     if not os.path.exists(POLICY_FILE):
-        return 0 
-        
+        print(f"[RL Engine] No policy matrix found. Defaulting to Action 0 for state: {estimated_state}")
+        return 0
+
     with open(POLICY_FILE, "r") as f:
         policy_memory = json.load(f)
-        
-    q_table = policy_memory["Q_table"]
-    
-    estimated_state = "LOW_ENTROPY_LOW_VARIANCE"
-    if lh_fsh > 2.5 or insulin > 15.0:
-        estimated_state = "HIGH_ENTROPY_HIGH_VARIANCE"
-        
+
+    q_table = policy_memory.get("Q_table", {})
     state_q_values = q_table.get(estimated_state, [0.5, 0.5])
-    
+
     if random.random() < 0.2:
-        print("[RL Engine] 🎲 Action Exploration triggered randomly.")
-        return random.choice([0, 1])
+        chosen = random.choice([0, 1])
+        print(f"[RL Engine] [EXPLORE] Random exploration triggered → Action {chosen} | State: {estimated_state}")
+        return chosen
     else:
-        chosen_act = int(state_q_values.index(max(state_q_values)))
-        print(f"[RL Engine] 🧠 Action Exploitation chosen: Path {chosen_act}")
-        return chosen_act
+        chosen = int(state_q_values.index(max(state_q_values)))
+        print(f"[RL Engine] [EXPLOIT] Best Q-value action → Action {chosen} | State: {estimated_state} | Q-values: {state_q_values}")
+        return chosen
+
 
 def node2_hypothesis_fn(state: PCOSState) -> dict:
     """
