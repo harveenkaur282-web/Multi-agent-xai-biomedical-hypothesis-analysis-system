@@ -86,7 +86,6 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
     
     literature_context_list = []
     for idx, paper in enumerate(literature_papers):
-        # Guardrail: Ensure individual abstracts are trimmed before addition 🌟
         abstract_text = paper.get('text', '')
         trimmed_abstract = " ".join(abstract_text.split()[:250]) # Cap abstracts to 250 words
         literature_context_list.append(
@@ -100,9 +99,9 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
     graph_context_list = []
     for edge in graph_knowledge:
         graph_context_list.append(
-            f"Edge: ({edge.get('source')}) --[{edge.get('type')}]--> ({edge.get('target')})"
+            f"{edge.get('source')} → {edge.get('type')} → {edge.get('target')}"
         )
-    # Cap graph paths length to top 15 connection vectors maximum 🌟
+
     graph_context_str = "\n".join(graph_context_list[:15]) if graph_context_list else "No explicit graph pathways retrieved."
 
     raw_patient = state.get("raw_input", {})
@@ -114,11 +113,11 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
     patient_data = (
         f"Patient ID: {raw_patient.get('patient_id', 'TEST_CASE_001')}\n"
         f"- Age: {raw_patient.get('age')} years old\n"
-        f"- BMI: {raw_patient.get('bmi')}\n"
-        f"- LH/FSH Ratio: {lh_fsh_val}\n"
-        f"- Fasting Insulin: {insulin_val} uIU/mL\n"
-        f"- AMH Levels: {raw_patient.get('amh_levels')} ng/mL\n"
-        f"- Free Testosterone: {raw_patient.get('free_testosterone')} ng/dL\n"
+        f"- BMI: {raw_patient.get('bmi')} kg/m²\n"
+        f"- LH/FSH Ratio: {lh_fsh_val} (reference: ~1:1 normal, >2.0 elevated)\n"
+        f"- Fasting Insulin: {insulin_val} uIU/mL (reference: 3-14 uIU/mL)\n"
+        f"- AMH Levels: {raw_patient.get('amh_levels')} ng/mL (reference: 1-4 ng/mL normal)\n"
+        f"- Free Testosterone: {raw_patient.get('free_testosterone')} ng/dL (reference: 15-70 ng/dL)\n"
         f"- Narrative Clinical Remarks: {raw_patient.get('clinical_remarks')}"
     )
 
