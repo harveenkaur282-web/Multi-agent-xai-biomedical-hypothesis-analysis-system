@@ -98,10 +98,7 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
     
     if not isinstance(kg_substructure, list):
         kg_substructure = [kg_substructure] if kg_substructure else []
-    
-    # =========================================================================
-    # 3. INDUSTRY STANDARD: DECOUPLED QUERY GENERATION TARGETS (WITH CLEANING)
-    # =========================================================================
+
     base_boolean_terms = '("PCOS" OR "polycystic ovary syndrome")'
     symptom_boolean_tokens = []
     semantic_vector_tokens = ["PCOS", "polycystic ovary syndrome"]

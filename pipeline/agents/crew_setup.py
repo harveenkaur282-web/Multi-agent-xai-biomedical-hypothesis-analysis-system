@@ -59,7 +59,6 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
     graph_excerpt = _summarize_context(graph_context, max_chars=400)
     lit_excerpt = _summarize_context(literature_context, max_chars=400)
 
-    # 🟢 REVERTED TO OLLAMA: Hooking directly into your local Llama3 3B instance
     local_llama = LLM(
         model="ollama/llama3.2:3b", 
         base_url="http://localhost:11434",
