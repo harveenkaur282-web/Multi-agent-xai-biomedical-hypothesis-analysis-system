@@ -69,13 +69,16 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
     groq_api_key = raw_patient.get("groq_api_key", None)
 
     # Invoke CrewAI Orchestrator Execution with dynamic LLM configuration
-    consensus_out = run_pcos_debate(
+    debate_payload = run_pcos_debate(
         graph_context=graph_context_str,
         literature_context=literature_context_str,
         patient_data=patient_data,
         llm_choice=llm_choice,
         groq_api_key=groq_api_key
     )
+
+    consensus_out = debate_payload.get("consensus", {}) or {}
+    debate_history = debate_payload.get("debate_history", {}) or {}
 
     # 🛠️ MISMATCH CHECK CORRECTION LAYER
     # Ensures that even if the small LLM passes validation with empty parameter values, the app populates correctly.
@@ -93,4 +96,7 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
     print("[NODE 2] Execution finished.")
     print("=" * 60 + "\n")
     
-    return {"clinical_hypothesis": consensus_out}
+    return {
+        "clinical_hypothesis": consensus_out,
+        "debate_history": debate_history
+    }

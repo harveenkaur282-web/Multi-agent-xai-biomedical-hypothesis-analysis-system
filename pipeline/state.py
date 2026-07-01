@@ -18,3 +18,4 @@ class PCOSState(TypedDict, total=False):
     human_approved: bool
     llm_judge_evaluation: Dict[str, Any]
     rag_eval_metrics: Dict[str, Any]
+    debate_history: Dict[str, str]

@@ -70,8 +70,9 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
         )
     else:
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        model_name = os.getenv("LLM_MODEL", "ollama/llama3.2:3b")
         selected_llm = LLM(
-            model="ollama/llama3.2:3b", 
+            model=model_name, 
             base_url=base_url,
             temperature=0.0,
             timeout=300
@@ -163,12 +164,28 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
 
     result = crew.kickoff()
     
+    consensus_dict = {}
     if hasattr(result, "json_dict") and result.json_dict:
-        return result.json_dict
-    if hasattr(result, "pydantic") and result.pydantic:
-        return result.pydantic.model_dump()
-        
-    cleaned_raw = str(result).strip()
-    if "```json" in cleaned_raw:
-        cleaned_raw = cleaned_raw.split("```json", 1)[1].split("```", 1)[0].strip()
-    return json.loads(cleaned_raw)
+        consensus_dict = result.json_dict
+    elif hasattr(result, "pydantic") and result.pydantic:
+        consensus_dict = result.pydantic.model_dump()
+    else:
+        cleaned_raw = str(result).strip()
+        if "```json" in cleaned_raw:
+            cleaned_raw = cleaned_raw.split("```json", 1)[1].split("```", 1)[0].strip()
+        try:
+            consensus_dict = json.loads(cleaned_raw)
+        except Exception:
+            consensus_dict = {}
+
+    # Capture raw individual task outputs for explainability
+    debate_history = {
+        "reproductive": task1_reproductive.output.raw if task1_reproductive.output else "No reproductive output generated.",
+        "metabolic": task2_metabolic.output.raw if task2_metabolic.output else "No metabolic output generated.",
+        "differential": task3_differential.output.raw if task3_differential.output else "No differential output generated."
+    }
+
+    return {
+        "consensus": consensus_dict,
+        "debate_history": debate_history
+    }

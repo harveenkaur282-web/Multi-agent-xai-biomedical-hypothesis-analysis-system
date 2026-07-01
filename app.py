@@ -61,8 +61,8 @@ def get_pipeline():
 pipeline_executor = get_pipeline()
 config = {"configurable": {"thread_id": "pcos_default_thread"}}
 
-st.subheader("Patient Clinical Profile Data Vector")
-st.json(user_input_case)
+with st.expander("🔍 View Patient Clinical Intake Data JSON Vector", expanded=False):
+    st.json(user_input_case)
 
 if st.button("Trigger Advanced Execution Graph", type="primary"):
     gemini_key = os.getenv("GEMINI_API_KEY")
@@ -105,24 +105,31 @@ if st.button("Trigger Advanced Execution Graph", type="primary"):
 # Get current state from memory saver checkpointer
 state_info = pipeline_executor.get_state(config)
 if state_info.next:
-    st.warning("⚠️ **Human-in-the-Loop Breakpoint**: Clinician approval required to proceed.")
+    st.markdown("### 🩺 Human-in-the-Loop Clinical Verification Panel")
+    st.warning("⚠️ **Awaiting Clinical Review**: The pipeline has paused at the verification checkpoint. Please evaluate the agent consensus hypothesis below before authorizing statistical/quantum modeling.")
+    
     current_vals = state_info.values
     hypothesis_data = current_vals.get("clinical_hypothesis", {})
     
-    c_col1, c_col2 = st.columns([1, 2])
-    with c_col1:
-        st.markdown(f"**Phenotype Classification:**\n{hypothesis_data.get('phenotype_assessment', 'N/A')}")
-        st.markdown(f"**Primary Threat Vector:**\n{hypothesis_data.get('primary_risk_factor', 'N/A')}")
-        st.markdown(f"**Agent Confidence Level:**\n{hypothesis_data.get('agent_confidence_level', 'Medium')}")
-    with c_col2:
-        st.info("#### Formal Biomedical Hypothesis Statement under Review")
-        st.write(hypothesis_data.get("clinical_hypothesis", "No hypothesis generated."))
-        st.markdown("**Recommended Exploratory Biomarkers:**")
+    h_col1, h_col2 = st.columns([1, 2])
+    with h_col1:
+        st.markdown("#### Phenotypic Attributes")
+        st.markdown(f"**Classification:** `{hypothesis_data.get('phenotype_assessment', 'N/A')}`")
+        st.markdown(f"**Primary Pathway:** `{hypothesis_data.get('primary_risk_factor', 'N/A')}`")
+        st.markdown(f"**Agent Confidence:** `{hypothesis_data.get('agent_confidence_level', 'Medium')}`")
+    with h_col2:
+        st.markdown("#### Formal Biomedical Hypothesis Statement")
+        st.info(hypothesis_data.get("clinical_hypothesis", "No hypothesis generated."))
+        st.markdown("**Recommended Exploratory Biomarkers (Rule-outs):**")
         biomarkers = hypothesis_data.get("recommended_biomarkers", [])
         if isinstance(biomarkers, list):
-            for bio in biomarkers:
-                st.markdown(f"* `{bio}`")
+            st.markdown(", ".join([f"`{b}`" for b in biomarkers]))
                 
+    st.markdown("#### LLM-as-a-Judge Evaluation & RAG Faithfulness Metrics")
+    judge_eval = current_vals.get("llm_judge_evaluation", {})
+    table_md = judge_eval.get("table_markdown", "")
+    if table_md:
+        st.markdown(table_md)
     st.markdown("---")
     approve_col, reject_col = st.columns(2)
     with approve_col:
@@ -211,21 +218,30 @@ if "pcos_output_state" in st.session_state:
         else:
             c1_agent, c2_agent = st.columns([1, 2])
             with c1_agent:
-                st.markdown(f"**Phenotype Classification:**\n{agent_data.get('phenotype_assessment', 'N/A')}")
-                st.markdown(f"**Primary Threat Vector:**\n{agent_data.get('primary_risk_factor', 'N/A')}")
-                st.markdown(f"**Agent Confidence Level:**\n{agent_data.get('agent_confidence_level', 'Medium')}")
+                st.markdown("#### Phenotype Classification")
+                st.success(f"**{agent_data.get('phenotype_assessment', 'N/A')}**")
+                st.markdown(f"**Primary Risk Factor:** `{agent_data.get('primary_risk_factor', 'N/A')}`")
+                st.markdown(f"**Agent Confidence:** `{agent_data.get('agent_confidence_level', 'Medium')}`")
 
             with c2_agent:
-                st.info("#### Formal Biomedical Hypothesis Statement")
-                st.write(agent_data.get("clinical_hypothesis", "No hypothesis generated."))
+                st.markdown("#### Formal Clinical Hypothesis")
+                st.info(agent_data.get("clinical_hypothesis", "No hypothesis generated."))
 
-                st.markdown("**Recommended Exploratory Biomarkers:**")
+                st.markdown("**Recommended Exploratory Biomarkers (Rule-outs):**")
                 biomarkers = agent_data.get("recommended_biomarkers", [])
                 if isinstance(biomarkers, list):
-                    for bio in biomarkers:
-                        st.markdown(f"* `{bio}`")
+                    st.markdown(", ".join([f"`{b}`" for b in biomarkers]))
                 else:
                     st.write(biomarkers)
+
+            st.markdown("---")
+            st.markdown("### LLM-as-a-Judge & RAG Quantitative Evaluation Metrics")
+            judge_eval = output_state.get("llm_judge_evaluation", {})
+            table_md = judge_eval.get("table_markdown", "")
+            if table_md:
+                st.markdown(table_md)
+            else:
+                st.info("No judge evaluations computed yet.")
 
     with t3:
         st.markdown("### Algorithmic Evaluation Processing Engines")
@@ -236,115 +252,229 @@ if "pcos_output_state" in st.session_state:
 
         st.markdown("---")
         ici_score_raw = ici_data.get('integrated_clinical_index', 0.0)
-        st.metric(
-            label="Integrated Clinical Index (ICI Score)",
-            value=f"{ici_score_raw:.4f}" if isinstance(ici_score_raw, float) else str(ici_score_raw),
-            delta="Hybrid Ensemble Metric Space Active"
-        )
-        st.success(f"**Integrated System Recommendation:** {ici_data.get('interpretation', 'N/A')}")
+        bayes_score = classical.get('bayesian_credibility_score', 0.0)
+        q_score = quantum.get('quantum_interaction_score', 0.0)
+        
+        m_col1, m_col2, m_col3 = st.columns(3)
+        with m_col1:
+            st.metric(
+                label="Integrated Clinical Index (ICI Score)",
+                value=f"{ici_score_raw:.4f}" if isinstance(ici_score_raw, float) else str(ici_score_raw),
+                delta="Integrated Core Index"
+            )
+        with m_col2:
+            st.metric(
+                label="Bayesian Credibility", 
+                value=f"{bayes_score * 100:.2f}%" if isinstance(bayes_score, float) else str(bayes_score),
+                delta="Classical Support"
+            )
+        with m_col3:
+            st.metric(
+                label="Quantum Interaction Score", 
+                value=f"{q_score:.4f}" if isinstance(q_score, float) else str(q_score),
+                delta="Non-linear Coupling"
+            )
+            
+        st.info(f"💡 **Integrated System Recommendation:** {ici_data.get('interpretation', 'N/A')}")
         st.markdown("---")
 
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("#### Classical Statistical Domain")
-            bayes_score = classical.get('bayesian_credibility_score', 0.0)
-            st.metric("Bayesian Update Score", f"{bayes_score * 100:.2f}%" if isinstance(bayes_score, float) else str(bayes_score))
+            st.markdown(f"**Bayesian Posterior Credibility:** `{bayes_score * 100:.2f}%`")
             st.markdown("**Posterior Credibility Interval Bounds:**")
             st.code(str(classical.get('confidence_interval_bounds', [])))
-            st.info(f"**Mathematical Integrity Evaluation:** {classical.get('interpretation', 'N/A')}")
+            st.success(f"**Classical Model Interpretation:** {classical.get('interpretation', 'N/A')}")
 
         with c2:
             st.markdown("#### Quantum Machine Learning Domain")
-            st.metric("Quantum Interaction Score (Simulated)", f"{quantum.get('quantum_interaction_score', 0.0)}")
-            st.markdown("**Dominant Sub-circuit Basis Pattern Density:**")
-            st.code(str(quantum.get('dominant_state_frequency', 0.0)))
-            st.info(f"**Quantum State Evaluation:** {quantum.get('interpretation', 'N/A')}")
+            st.markdown(f"**Von Neumann Entropy:** `{quantum.get('von_neumann_entropy', 0.0):.4f}`")
+            st.markdown(f"**Dominant State Frequency:** `{quantum.get('dominant_state_frequency', 0.0):.4f}`")
+            st.success(f"**Quantum State Evaluation:** {quantum.get('interpretation', 'N/A')}")
 
-            st.markdown("#### Live Quantum State Amplitude Spectrum")
-            raw_counts = quantum.get('raw_counts', {})
-            if raw_counts:
-                df_quantum = pd.DataFrame({
-                    "Quantum Computational Basis State (|ψ⟩)": [f"|{k}⟩" for k in raw_counts.keys()],
-                    "Measurement Shot Frequency": list(raw_counts.values())
-                })
-                st.bar_chart(
-                    data=df_quantum,
-                    x="Quantum Computational Basis State (|ψ⟩)",
-                    y="Measurement Shot Frequency",
-                    use_container_width=True
-                )
-            else:
-                st.info("No quantum state count distribution available.")
+        st.markdown("---")
+        st.markdown("#### Live Quantum State Amplitude Spectrum")
+        raw_counts = quantum.get('raw_counts', {})
+        if raw_counts:
+            df_quantum = pd.DataFrame({
+                "Quantum Computational Basis State (|ψ⟩)": [f"|{k}⟩" for k in raw_counts.keys()],
+                "Measurement Shot Frequency": list(raw_counts.values())
+            })
+            st.bar_chart(
+                data=df_quantum,
+                x="Quantum Computational Basis State (|ψ⟩)",
+                y="Measurement Shot Frequency",
+                use_container_width=True
+            )
+        else:
+            st.info("No quantum state count distribution available.")
 
-        st.markdown("#### Node 3 Summary")
-        st.json(node3_data)
-
-        with st.expander("View Raw Circuit Simulated State Dictionary"):
+        with st.expander("🛠️ View QML Simulation Details & Raw Payload State"):
+            st.markdown("**Node 3 Summary:**")
+            st.json(node3_data)
+            st.markdown("**Raw Circuit State counts:**")
             st.json(quantum.get('raw_counts', {}))
 
     with t4:
         st.markdown("### Unified Production Schema Verification")
-        st.markdown("_This node confirms alignment and safe variable typing before processing the Node 5 XAI algorithms._")
+        st.markdown("_This node confirms alignment and safe variable typing before processing the Node 5 Argumentation XAI engine._")
 
         contract = output_state.get("node4_contract", {})
-        st.json(contract if contract else {"status": "missing"})
+        
+        ready = contract.get("ready_for_xai", False)
+        if ready:
+            st.success("✅ **Upstream payload contract is fully complete. All data streams validated.**")
+        else:
+            st.warning("⚠️ **Payload contract is missing some optional or non-critical diagnostic components.**")
+            
+        c_col1, c_col2 = st.columns(2)
+        with c_col1:
+            st.markdown("**State Checkpoints:**")
+            st.markdown(f"{"✅" if not contract.get('missing_state_keys') else "❌"} State Keys completeness")
+            st.markdown(f"{"✅" if contract.get('judge_scores_available') else "❌"} LLM Judge Evaluations")
+            st.markdown(f"{"✅" if contract.get('rag_metrics_available') else "❌"} RAG Metrics availability")
+        with c_col2:
+            st.markdown("**Domain Metrics:**")
+            st.markdown(f"{"✅" if not contract.get('missing_classical_fields') else "❌"} Classical Statistical Score vectors")
+            st.markdown(f"{"✅" if not contract.get('missing_quantum_fields') else "❌"} QML Simulation metrics")
+            st.markdown(f"{"✅" if not contract.get('missing_debate_agents') else "❌"} Multi-Agent Debate transcripts")
 
-        st.markdown("#### Complete Downstream Execution Payload Data Vector")
-        st.json({
-            "raw_input_shape": list(output_state.get("raw_input", {}).keys()),
-            "clinical_hypothesis_keys": list(output_state.get("clinical_hypothesis", {}).keys()),
-            "classical_scores_keys": list(output_state.get("classical_scores", {}).keys()),
-            "quantum_scores_keys": list(output_state.get("quantum_scores", {}).keys()),
-            "ici_metrics_keys": list(output_state.get("ici_metrics", {}).keys()),
-            "node3_summary_keys": list(output_state.get("node3_summary", {}).keys())
-        })
+        with st.expander("🔍 View Raw Schema Contract Verification payload"):
+            st.json(contract if contract else {"status": "missing"})
+
+            st.markdown("#### Complete Downstream Execution Payload Data Vector")
+            st.json({
+                "raw_input_shape": list(output_state.get("raw_input", {}).keys()),
+                "clinical_hypothesis_keys": list(output_state.get("clinical_hypothesis", {}).keys()),
+                "classical_scores_keys": list(output_state.get("classical_scores", {}).keys()),
+                "quantum_scores_keys": list(output_state.get("quantum_scores", {}).keys()),
+                "ici_metrics_keys": list(output_state.get("ici_metrics", {}).keys()),
+                "node3_summary_keys": list(output_state.get("node3_summary", {}).keys()),
+                "debate_history_agents": list(output_state.get("debate_history", {}).keys()),
+                "judge_evaluation_keys": list(output_state.get("llm_judge_evaluation", {}).keys()),
+            })
 
     with t5:
-        st.markdown("### Explainable AI Engine")
+        st.markdown("### Explainable AI Engine (ArgMed-Agents Framework)")
         xai_metrics = output_state.get("xai_metrics", {})
         xai_report = output_state.get("xai_report", "")
 
         if not xai_metrics:
             st.warning("Explainability interpretation data missing from pipeline state context.")
         else:
-            cx1, cx2 = st.columns([4, 3])
+            col_graph, col_citations = st.columns([3, 2])
+            
+            with col_graph:
+                st.markdown("#### Clinical Argumentation Graph")
+                st.caption("ArgMed-Agents: Abstract Argumentation Scheme (Green: Accepted, Red: Defeated, Gray: Out)")
+                
+                arg_data = xai_metrics.get("arguments", {})
+                arg_edges = xai_metrics.get("graph_edges", [])
 
-            with cx1:
-                st.markdown("#### Local Biomarker Attribution")
-                shap_data = xai_metrics.get("shap_importance_vectors", {})
-                if shap_data:
-                    df_shap = pd.DataFrame({
-                        "Biomedical Axis": list(shap_data.keys()),
-                        "Contribution": list(shap_data.values())
-                    }).sort_values(by="Contribution", ascending=True)
+                if arg_data:
+                    arg_dot = graphviz.Digraph(comment="Clinical Argumentation Graph")
+                    arg_dot.attr(bgcolor="#0E1117", rankdir="TB", fontname="Helvetica")
+                    arg_dot.attr("node", shape="box", style="filled,rounded", fontname="Helvetica", fontsize="11")
 
-                    st.bar_chart(
-                        data=df_shap,
-                        x="Biomedical Axis",
-                        y="Contribution",
-                        use_container_width=True
-                    )
+                    status_colors = {
+                        "ACCEPTED": {"fillcolor": "#d4edda", "fontcolor": "#155724", "color": "#28a745"},
+                        "DEFEATED": {"fillcolor": "#f8d7da", "fontcolor": "#721c24", "color": "#dc3545"},
+                        "OUT": {"fillcolor": "#e2e3e5", "fontcolor": "#383d41", "color": "#6c757d"},
+                    }
+
+                    for arg_id, arg in arg_data.items():
+                        status = arg.get("status", "OUT")
+                        colors = status_colors.get(status, status_colors["OUT"])
+                        label = f"{arg_id}: {arg.get('title', '')}\n[{status}]"
+                        arg_dot.node(arg_id, label, **colors)
+
+                    for edge in arg_edges:
+                        src = edge.get("source", "")
+                        tgt = edge.get("target", "")
+                        rel = edge.get("relation", "SUPPORTS")
+                        if rel == "ATTACKS":
+                            arg_dot.edge(src, tgt, label="ATTACKS", color="#dc3545", fontcolor="#dc3545", style="dashed", penwidth="2.0")
+                        elif rel == "RESOLVES":
+                            arg_dot.edge(src, tgt, label="RESOLVES", color="#007bff", fontcolor="#007bff", style="bold", penwidth="2.0")
+                        else:
+                            arg_dot.edge(src, tgt, label=rel, color="#6c757d", fontcolor="#AAAAAA")
+
+                    st.graphviz_chart(arg_dot)
                 else:
-                    st.info("No biomarker attribution found.")
+                    st.info("No argumentation data available.")
 
-            with cx2:
-                st.markdown("#### Graph Evidence Summary")
-                st.json(xai_metrics.get("graph_evidence", {}))
-
-                st.markdown("#### Counterfactuals")
-                for item in xai_metrics.get("counterfactuals", []):
-                    st.markdown(f"- {item}")
-
-                st.markdown("#### Quantum Interaction Note")
-                st.json(xai_metrics.get("quantum_summary", {}))
+            with col_citations:
+                st.markdown("#### Evidence Grounding Matrix")
+                st.caption("Frequently referenced literary chunks in consensus reasoning")
+                citation_map = xai_metrics.get("citations", {})
+                if citation_map:
+                    df_citations = pd.DataFrame({
+                        "Chunk Citation ID": list(citation_map.keys()),
+                        "Reference Count": list(citation_map.values())
+                    }).sort_values(by="Reference Count", ascending=False)
+                    st.dataframe(df_citations, use_container_width=True)
+                else:
+                    st.caption("No literature citations were referenced during the debate.")
 
             st.markdown("---")
+            
+            col_details, col_biomarkers = st.columns([1, 1])
+            
+            with col_details:
+                st.markdown("#### Argument Evaluation Details")
+                if arg_data:
+                    for arg_id, arg in arg_data.items():
+                        status = arg.get("status", "OUT")
+                        icon = "🟢" if status == "ACCEPTED" else ("🔴" if status == "DEFEATED" else "⚪")
+                        with st.expander(f"{icon} {arg_id}: {arg.get('title', 'Unknown')} — [{status}]"):
+                            st.markdown(f"**Claim:** {arg.get('claim', 'N/A')}")
+                            st.markdown(f"**Evidence:** {arg.get('evidence', 'N/A')}")
+            
+            with col_biomarkers:
+                st.markdown("#### Patient Biomarker Input Vector")
+                st.caption("Visual representation of biomedical feature magnitudes")
+                shap_data = xai_metrics.get("shap_importance_vectors", {})
+                if shap_data:
+                    df_bio = pd.DataFrame({
+                        "Biomedical Axis": list(shap_data.keys()),
+                        "Patient Value": list(shap_data.values())
+                    }).sort_values(by="Patient Value", ascending=True)
+
+                    st.bar_chart(
+                        data=df_bio,
+                        x="Biomedical Axis",
+                        y="Patient Value",
+                        use_container_width=True
+                    )
+
+            st.markdown("---")
+
+            with st.expander("🩺 View Detailed Multi-Agent Debate Transcripts", expanded=False):
+                debate_history = output_state.get("debate_history", {})
+                if debate_history:
+                    rep_trans = debate_history.get("reproductive", "No reproductive output generated.")
+                    met_trans = debate_history.get("metabolic", "No metabolic output generated.")
+                    diff_trans = debate_history.get("differential", "No differential output generated.")
+                    
+                    sub_t1, sub_t2, sub_t3 = st.tabs(["🩺 Reproductive Agent", "🧬 Metabolic Agent", "🔬 Differential Agent"])
+                    with sub_t1:
+                        st.text(rep_trans)
+                    with sub_t2:
+                        st.text(met_trans)
+                    with sub_t3:
+                        st.text(diff_trans)
+                else:
+                    st.info("No debate transcripts captured from the multi-agent consensus.")
+
+            st.markdown("---")
+
             if xai_report:
+                st.markdown("#### Final Diagnostic & Explainability Dossier")
                 st.markdown(xai_report)
                 st.download_button(
-                    label="Download Clinical Diagnostics & Explainability Report",
+                    label="📥 Download Clinical Argumentation & Explainability Report (.md)",
                     data=xai_report,
-                    file_name="PCOS_XAI_Dossier_Case.md",
+                    file_name="PCOS_ArgMed_XAI_Dossier.md",
                     mime="text/markdown",
                     use_container_width=True
                 )
