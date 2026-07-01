@@ -30,6 +30,12 @@ clinical_remarks = st.sidebar.text_area(
     value="Patient presents with severe, treatment-resistant inflammatory acne along the jawline and neck. Reports a history of profound oligomenorrhea, experiencing only 3 irregular menstrual periods in the past 12 months. Transvaginal pelvic ultrasound reveals marked bilateral polycystic ovary morphology with antral follicle counts consistent with a classic string-of-pearls arrangement."
 )
 
+with st.sidebar.expander("LLM Engine Configuration", expanded=True):
+    llm_choice = st.selectbox("CrewAI LLM Backend", ["Ollama Local", "Groq API"], index=1 if os.getenv("GROQ_API_KEY") else 0)
+    groq_api_key = os.getenv("GROQ_API_KEY", "")
+    if llm_choice == "Groq API" and not groq_api_key:
+        groq_api_key = st.text_input("Enter Groq API Key", type="password")
+
 # FIXED: Explicitly normalized map schemas to eliminate upstream node-to-state key tracking drops
 user_input_case = {
     "age": age,
@@ -44,6 +50,8 @@ user_input_case = {
     "testosterone_ng_dl": free_testosterone,    # Lineage link map for node3 threshold lookups
     "testosterone": free_testosterone,          # Fallback backup link for node5 metrics calculation
     "clinical_remarks": clinical_remarks,
+    "llm_choice": llm_choice,
+    "groq_api_key": groq_api_key,
 }
 
 @st.cache_resource
@@ -51,6 +59,7 @@ def get_pipeline():
     return build_pcos_pipeline()
 
 pipeline_executor = get_pipeline()
+config = {"configurable": {"thread_id": "pcos_default_thread"}}
 
 st.subheader("Patient Clinical Profile Data Vector")
 st.json(user_input_case)
@@ -75,17 +84,80 @@ if st.button("Trigger Advanced Execution Graph", type="primary"):
         # Execute downstream architecture graph once context pathing validates cleanly
         with st.spinner("Processing remote multi-agent consensus loops and quantum parameters..."):
             try:
-                output_payload = pipeline_executor.invoke({"raw_input": user_input_case})
+                output_payload = pipeline_executor.invoke(
+                    {
+                        "raw_input": user_input_case, 
+                        "human_approved": None, 
+                        "human_feedback": None
+                    }, 
+                    config=config
+                )
                 st.session_state["pcos_output_state"] = output_payload
-                st.success("🎉 Execution Complete!")
+                state_info = pipeline_executor.get_state(config)
+                if state_info.next:
+                    st.info("ℹ️ Pipeline paused at the Human-in-the-Loop breakpoint. Please review the hypothesis below.")
+                else:
+                    st.success("🎉 Execution Complete!")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Pipeline Execution Interrupted: {str(e)}")
+
+# Get current state from memory saver checkpointer
+state_info = pipeline_executor.get_state(config)
+if state_info.next:
+    st.warning("⚠️ **Human-in-the-Loop Breakpoint**: Clinician approval required to proceed.")
+    current_vals = state_info.values
+    hypothesis_data = current_vals.get("clinical_hypothesis", {})
+    
+    c_col1, c_col2 = st.columns([1, 2])
+    with c_col1:
+        st.markdown(f"**Phenotype Classification:**\n{hypothesis_data.get('phenotype_assessment', 'N/A')}")
+        st.markdown(f"**Primary Threat Vector:**\n{hypothesis_data.get('primary_risk_factor', 'N/A')}")
+        st.markdown(f"**Agent Confidence Level:**\n{hypothesis_data.get('agent_confidence_level', 'Medium')}")
+    with c_col2:
+        st.info("#### Formal Biomedical Hypothesis Statement under Review")
+        st.write(hypothesis_data.get("clinical_hypothesis", "No hypothesis generated."))
+        st.markdown("**Recommended Exploratory Biomarkers:**")
+        biomarkers = hypothesis_data.get("recommended_biomarkers", [])
+        if isinstance(biomarkers, list):
+            for bio in biomarkers:
+                st.markdown(f"* `{bio}`")
+                
+    st.markdown("---")
+    approve_col, reject_col = st.columns(2)
+    with approve_col:
+        if st.button("👍 Approve & Continue Pipeline", type="primary", use_container_width=True):
+            with st.spinner("Resuming graph execution..."):
+                pipeline_executor.update_state(config, {"human_approved": True}, as_node="JudgeNode")
+                output_payload = pipeline_executor.invoke(None, config=config)
+                st.session_state["pcos_output_state"] = output_payload
+                st.success("🎉 Pipeline Resumed & Completed!")
+                st.rerun()
+    with reject_col:
+        rejection_feedback = st.text_area("Provide feedback for rejection:", placeholder="Explain why this hypothesis is inaccurate or what needs adjustment...")
+        if st.button("👎 Reject & Terminate", type="secondary", use_container_width=True):
+            if not rejection_feedback.strip():
+                st.error("Please enter feedback before rejecting.")
+            else:
+                with st.spinner("Terminating pipeline..."):
+                    pipeline_executor.update_state(config, {
+                        "human_approved": False,
+                        "human_feedback": rejection_feedback
+                    }, as_node="JudgeNode")
+                    output_payload = pipeline_executor.invoke(None, config=config)
+                    st.session_state["pcos_output_state"] = output_payload
+                    st.error("❌ Pipeline Terminated: Feedback Saved.")
+                    st.rerun()
 
 st.markdown("---")
 
 if "pcos_output_state" in st.session_state:
     output_state = st.session_state["pcos_output_state"]
+
+    if output_state.get("human_approved") is False:
+        st.error("❌ **Pipeline Terminated**: The clinician rejected the hypothesis.")
+        st.info(f"**Clinician Feedback Recorded:** *{output_state.get('human_feedback')}*")
+        st.warning("Pipeline terminated. Clinician feedback has been recorded and will inform future iterations.")
 
     t1, t2, t3, t4, t5 = st.tabs([
         "Node 1: Hybrid Context",

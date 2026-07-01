@@ -44,7 +44,7 @@ def _summarize_context(text: str, max_chars: int = 400) -> str:
     cleaned = re.sub(r"\s+", " ", text).strip()
     return cleaned[:max_chars]
 
-def run_pcos_debate(graph_context: str, literature_context: str, patient_data: str) -> dict:
+def run_pcos_debate(graph_context: str, literature_context: str, patient_data: str, llm_choice: str = "Ollama Local", groq_api_key: str = None) -> dict:
     bmi = _extract_value(r"BMI:\s*([\d\.]+)", patient_data, 24.5)
     insulin = _extract_value(r"Fasting Insulin:\s*([\d\.]+)", patient_data, 14.2)
     lh_fsh = _extract_value(r"LH/FSH Ratio:\s*([\d\.]+)", patient_data, 2.1)
@@ -57,20 +57,31 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
         clinical_remarks = "Oligomenorrhea, acne, polycystic ovary morphology on ultrasound"
 
     graph_excerpt = _summarize_context(graph_context, max_chars=400)
-    lit_excerpt = _summarize_context(literature_context, max_chars=400)
+    lit_excerpt = _summarize_context(literature_context, max_chars=1000)
 
-    local_llama = LLM(
-        model="ollama/llama3.2:3b", 
-        base_url="http://localhost:11434",
-        temperature=0.0,
-        timeout=300
-    )
+    # Dynamic LLM selection
+    if llm_choice == "Groq API":
+        api_key = groq_api_key or os.getenv("GROQ_API_KEY")
+        selected_llm = LLM(
+            model="groq/llama3-70b-8192", 
+            api_key=api_key,
+            temperature=0.0,
+            timeout=300
+        )
+    else:
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        selected_llm = LLM(
+            model="ollama/llama3.2:3b", 
+            base_url=base_url,
+            temperature=0.0,
+            timeout=300
+        )
 
     endocrinology_agent = Agent(
         role="Reproductive Endocrinologist",
-        goal="Classify the dynamic patient presentation using Rotterdam criteria.",
-        backstory="Expert in mapping cycle history, androgen signs, and morphology to specific reproductive phenotypes.",
-        llm=local_llama,
+        goal="Classify the dynamic patient presentation using Rotterdam criteria and ground your analysis strictly in literature.",
+        backstory="Expert in mapping cycle history, androgen signs, and morphology to specific reproductive phenotypes. Relies strictly on medical literature.",
+        llm=selected_llm,
         verbose=True
     )
 
@@ -78,7 +89,7 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
         role="Metabolic & Endocrine Pathway Specialist",
         goal="Analyze insulin sensitivity, BMI metrics, and metabolic risk pathways.",
         backstory="Meticulous bio-statistician focused on identifying hidden insulin resistance, hyperinsulinemia, and metabolic features of endocrine disorders.",
-        llm=local_llama,
+        llm=selected_llm,
         verbose=True
     )
 
@@ -86,15 +97,15 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
         role="Clinical Differential Diagnosis Expert",
         goal="Determine missing rule-out tests by comparing current patient metrics against baseline requirements.",
         backstory="Diagnostic coordinator verifying mimic panels to confirm clinical rule-outs cleanly.",
-        llm=local_llama,
+        llm=selected_llm,
         verbose=True
     )
 
     consensus_agent = Agent(
         role="Consensus Harmonizer",
-        goal="Synthesize structured observations into an exact target schema validation format.",
-        backstory="Compiles independent expert views into a clean final data payload with zero omissions.",
-        llm=local_llama,
+        goal="Synthesize structured observations and literature citations into an exact target schema validation format.",
+        backstory="Compiles independent expert views into a clean final data payload, preserving precise citation source references.",
+        llm=selected_llm,
         verbose=True
     )
 
@@ -103,10 +114,12 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
     task1_reproductive = Task(
         description=(
             f"Patient Context Metrics:\n- BMI: {bmi}\n- LH/FSH ratio: {lh_fsh}\n- Testosterone: {testosterone}\n- AMH: {amh}\n- Remarks: {clinical_remarks}\n\n"
+            f"Literature Context Chunks:\n{literature_context}\n\n"
             f"Task Instruction:\nSelect the true matching classification out of these exact options: {PHENOTYPE_LOCK}.\n"
-            f"Formulate exactly one clean summary hypothesis sentence evaluating the reproductive picture."
+            f"Formulate exactly one clean summary hypothesis sentence evaluating the reproductive picture.\n"
+            f"IMPORTANT: You MUST ground your assertions in the provided Literature Context Chunks and append the corresponding chunk citation IDs (e.g. `[Source-X, Chunk-Y]`) to your clinical findings."
         ),
-        expected_output="A phenotype categorization string and one supporting hypothesis sentence.",
+        expected_output="A phenotype categorization string and one supporting hypothesis sentence with citations.",
         agent=endocrinology_agent
     )
 
@@ -132,7 +145,8 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
     task4_consensus = Task(
         description=(
             "Collect the outputs from the Reproductive task, the Metabolic task, and the Differential task. "
-            "Map them cleanly to the properties requested by the target JSON structure. Ensure NO fields are left blank or empty."
+            "Map them cleanly to the properties requested by the target JSON structure. Ensure NO fields are left blank or empty.\n"
+            "Ensure that the final `clinical_hypothesis` contains the explicit chunk source citations (e.g., `[Source-X, Chunk-Y]`) that support the statements."
         ),
         expected_output="Raw valid JSON matching the ConsensusHypothesisModel schema.",
         agent=consensus_agent,

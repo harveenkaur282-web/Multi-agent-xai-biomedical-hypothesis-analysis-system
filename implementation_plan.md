@@ -88,13 +88,24 @@ We will transition Node 1 from whole-abstract matching to a proper chunked RAG p
 We will configure CrewAI agents to use the chunked documents, citing specific chunk IDs to ensure accountability. We will also integrate Groq and Qwen models.
 
 #### [MODIFY] [crew_setup.py](file:///c:/Users/harve/OneDrive/docs/GitHub/Multi-agent-xai-biomedical-hypothesis-analysis-system/pipeline/agents/crew_setup.py)
-* Support dynamic LLM configuration based on the user's sidebar selection (Ollama local Llama 3.2 3B, Ollama Qwen 2.5 7B, or Groq API).
-* Update agent system prompts and tasks to strictly mandate **source citations** from the provided chunks (e.g., "Cite the specific Source and Chunk ID when making clinical assertions").
-* Secure the output parser to extract both the clinical hypothesis and its cited sources.
+* Support dynamic LLM configuration based on the user's sidebar selection:
+  - Default: `ollama/llama3.2:3b`
+  - Groq Option: `groq/llama3-70b-8192` (using `GROQ_API_KEY` from the environment or `.env` file).
+* Pass literature chunks explicitly as context to the crew.
+* Update agent system prompts and tasks to strictly mandate **source citations** from the provided chunks (e.g., citing the specific `[Source-X, Chunk-Y]` ID).
+* Ensure that the consensus hypothesis outputs include cited sources correctly.
 
 #### [MODIFY] [node2_hypothesis.py](file:///c:/Users/harve/OneDrive/docs/GitHub/Multi-agent-xai-biomedical-hypothesis-analysis-system/pipeline/nodes/node2_hypothesis.py)
-* Feed structured chunk data and citation templates to the debate crew.
-* Include the clinician's `human_feedback` (if routing back from a rejection) in the debate context so agents adapt and fix previous errors.
+* Feed structured chunk data (including their unique IDs `[Source-X, Chunk-Y]`) to the debate crew.
+* Include the clinician's `human_feedback` (if routing back or loaded from previous iteration) in the debate context so agents adapt and fix errors.
+
+#### [MODIFY] [app.py](file:///c:/Users/harve/OneDrive/docs/GitHub/Multi-agent-xai-biomedical-hypothesis-analysis-system/app.py)
+* Implement the selection for LLM backends (Ollama or Groq).
+* Manage LangGraph state thread persistence via `configurable` thread IDs to enable interruption and resuming.
+* Render the **Human-in-the-Loop decision layout** when graph execution is paused at `JudgeNode`:
+  - Show the generated clinical hypothesis and its citations.
+  - If approved, update state with `human_approved = True` and resume execution.
+  - If rejected, prompt user for text feedback, update state with `human_approved = False` and `human_feedback = feedback`, resume the graph execution (which gracefully routes to `END`), and stop right there to save resources.
 
 ---
 

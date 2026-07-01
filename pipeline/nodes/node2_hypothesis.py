@@ -14,15 +14,15 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
     literature_papers = [c for c in chunks if isinstance(c, dict) and c.get("is_paper") is True]
 
     literature_context_list = []
-    for idx, paper in enumerate(literature_papers):
+    for paper in literature_papers:
         abstract_text = paper.get("text", "")
-        trimmed_abstract = " ".join(abstract_text.split()[:250])
+        chunk_id = paper.get("id", "Unknown-ID")
         literature_context_list.append(
-            f"[{idx + 1}] Title: {paper.get('title')}\nAbstract: {trimmed_abstract}\n"
+            f"ID: {chunk_id}\nTitle: {paper.get('title')}\nText: {abstract_text}\n"
         )
 
     literature_context_str = (
-        "\n".join(literature_context_list[:4])
+        "\n".join(literature_context_list)
         if literature_context_list
         else "No literature abstracts retrieved."
     )
@@ -50,6 +50,9 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
     amh_val = float(raw_patient.get("amh_levels", 4.2))
     testo_val = float(raw_patient.get("free_testosterone", 55.0))
 
+    human_feedback = state.get("human_feedback", "")
+    feedback_str = f"\n- Clinician Feedback from previous attempt: {human_feedback}\n" if human_feedback else ""
+
     patient_data = (
         f"Patient ID: {raw_patient.get('patient_id', 'TEST_CASE_001')}\n"
         f"- Age: {raw_patient.get('age', 27)} years old\n"
@@ -59,13 +62,19 @@ def node2_hypothesis_fn(state: PCOSState) -> dict:
         f"- AMH Levels: {amh_val} ng/mL (reference: 1-4 ng/mL normal)\n"
         f"- Free Testosterone: {testo_val} ng/dL (reference: 15-70 ng/dL)\n"
         f"- Clinical Remarks: {raw_patient.get('clinical_remarks', '')}"
+        f"{feedback_str}"
     )
 
-    # Invoke CrewAI Orchestrator Execution
+    llm_choice = raw_patient.get("llm_choice", "Ollama Local")
+    groq_api_key = raw_patient.get("groq_api_key", None)
+
+    # Invoke CrewAI Orchestrator Execution with dynamic LLM configuration
     consensus_out = run_pcos_debate(
         graph_context=graph_context_str,
         literature_context=literature_context_str,
-        patient_data=patient_data
+        patient_data=patient_data,
+        llm_choice=llm_choice,
+        groq_api_key=groq_api_key
     )
 
     # 🛠️ MISMATCH CHECK CORRECTION LAYER
