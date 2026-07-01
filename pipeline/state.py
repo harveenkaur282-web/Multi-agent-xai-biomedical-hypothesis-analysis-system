@@ -14,3 +14,7 @@ class PCOSState(TypedDict, total=False):
     node4_contract: Dict[str, Any]
     xai_metrics: Dict[str, Any]
     xai_report: str
+    human_feedback: str
+    human_approved: bool
+    llm_judge_evaluation: Dict[str, Any]
+    rag_eval_metrics: Dict[str, Any]

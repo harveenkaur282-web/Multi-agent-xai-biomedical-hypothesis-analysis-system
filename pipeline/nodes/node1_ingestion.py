@@ -54,10 +54,22 @@ def extract_biomedical_entities(text: str) -> list:
         
     return list(set(discovered))
 
+def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list:
+    chunks = []
+    if not text:
+        return chunks
+    step = max(1, chunk_size - overlap)
+    for i in range(0, len(text), step):
+        chunk = text[i:i+chunk_size]
+        chunks.append(chunk)
+        if i + chunk_size >= len(text):
+            break
+    return chunks
+
+
 def node1_ingestion_fn(state: PCOSState) -> dict:
     raw_case = dict(state["raw_input"])
     
-    # Schema Adapter: Flatten nested labs if present (e.g. from mock_patients.json)
     if "labs" in raw_case and isinstance(raw_case["labs"], dict):
         labs = raw_case["labs"]
         mapping = {
@@ -80,12 +92,9 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
             
     state["raw_input"] = raw_case
 
-    
-    # 1. RUN THE SCI-SPACY NER PARSING LAYER WITH DUAL-WINDOW NEGATION FILTERS
     remarks = raw_case.get("clinical_remarks", "")
     verified_entities = extract_biomedical_entities(remarks)
     print(f" [DIAGNOSTIC] SciSpacy Extracted Entities: {verified_entities}")
-    # 2. QUERY LIVE NEO4J DATABASE FOR GRAPH CACHED MEDICAL PATHWAYS
     kg_substructure = []
     try:
         db = Neo4jMedicalGraph()
@@ -118,7 +127,6 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
             symptom_boolean_tokens.append(f'"{clean_ent}"')
             semantic_vector_tokens.append(clean_ent)
             
-    # Load dynamic thresholds from config
     config_path = os.path.join("data", "pcos_thresholds.json")
     try:
         with open(config_path) as f:
@@ -149,86 +157,104 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
     print(f"[RAG Ingestion] Production API Target: '{api_search_query}'")
     print(f"[RAG Ingestion] Production Vector Target: '{semantic_vector_query}'")
     
-    # 4. RUN LIVE API WEB SEARCH RETRIEVAL USING THE CLEANED QUERY
-    # Fallback to local pubmed_cache.json if API fails after all 3 retry attempts
-    # or if the live search returns 0 results.
-    raw_api_response = []
-    try:
-        raw_api_response = search_pubmed_pcos(api_search_query)
-    except Exception as api_err:
-        print(f"[RAG Ingestion] PubMed live API failed: {api_err}. Loading local cache fallback.")
-
-    documents = raw_api_response if isinstance(raw_api_response, list) and raw_api_response else []
-
-    if not documents:
-        cache_path = os.path.join("data", "pubmed_cache.json")
+    use_live_search = raw_case.get("use_live_search", False)
+    documents = []
+    if use_live_search:
         try:
-            with open(cache_path, "r") as cache_file:
-                documents = json.load(cache_file)
-            print(f"[RAG Ingestion] Loaded {len(documents)} papers from local pubmed_cache.json fallback.")
-        except Exception as cache_err:
-            print(f"[RAG Ingestion] Local cache also unavailable: {cache_err}")
-            documents = []
+            documents = search_pubmed_pcos(api_search_query)
+        except Exception as api_err:
+            print(f"[RAG Ingestion] PubMed live API failed: {api_err}. Loading local cache fallback.")
+        if not documents:
+            cache_path = os.path.join("data", "pubmed_cache.json")
+            try:
+                with open(cache_path, "r") as cache_file:
+                    documents = json.load(cache_file)
+            except Exception as cache_err:
+                print(f"[RAG Ingestion] Local cache also unavailable: {cache_err}")
+    else:
+        corpus_path = os.path.join("data", "pcos_literature_corpus.json")
+        try:
+            with open(corpus_path, "r", encoding="utf-8") as corpus_file:
+                documents = json.load(corpus_file)
+        except Exception as corpus_err:
+            print(f"[RAG Ingestion] Local corpus unavailable: {corpus_err}")
 
-    # =========================================================================
-    # 5. ADVANCED HYBRID SEARCH: DENSE EMBEDDINGS (TRANSFORMERS) + SPARSE (BM25)
-    # =========================================================================
-    if not documents:
-        # 🚀 FIX: Print validation log so test assertion engines can parse the completion payload
+    unified_docs = []
+    for doc in documents:
+        text = doc.get("text") or doc.get("abstract") or ""
+        title = doc.get("title") or "Untitled"
+        pmid = doc.get("pmid") or ""
+        if text:
+            unified_docs.append({
+                "title": title,
+                "text": text,
+                "pmid": pmid
+            })
+
+    if not unified_docs:
         print("[RAG Ingestion Node] Successfully appended 0 ranked papers to state payload.")
         return {
             "retrieved_chunks": [],
             "graph_knowledge": kg_substructure
         }
 
-    corpus = [doc["text"] for doc in documents]
-    tokenized_corpus = [tokenize(doc) for doc in corpus]
-    
-    # A. Execute Sparse Keyword Layer (BM25)
-    bm25 = BM25Okapi(tokenized_corpus)
-    bm25_scores = bm25.get_scores(tokenize(semantic_vector_query))
-    
-    # Safely Normalize BM25 values between 0.0 and 1.0
-    score_min, score_max = np.min(bm25_scores), np.max(bm25_scores)
-    if (score_max - score_min) == 0:
-        normalized_bm25 = np.ones(len(bm25_scores)) * 0.5
-    else:
-        normalized_bm25 = (bm25_scores - score_min) / (score_max - score_min)
-    
-    # B. Execute Dense Semantic Layer (Sentence-Transformer)
-    query_embedding = embedding_model.encode([semantic_vector_query])
-    doc_embeddings = embedding_model.encode(corpus)
-    dense_cosine_scores = cosine_similarity(query_embedding, doc_embeddings).flatten()
-    
-    # C. Apply Blended Fusion Mapping Matrix
-    merged_results = []
-    for idx, doc in enumerate(documents):
-        hybrid_score = float((0.5 * normalized_bm25[idx]) + (0.5 * float(dense_cosine_scores[idx])))
-        
-        if hybrid_score > 0.0:
-            presentation_score = round(0.3 + (hybrid_score * 0.7), 4)
-        else:
-            presentation_score = 0.0
+    all_chunks = []
+    for doc_idx, doc in enumerate(unified_docs, start=1):
+        chunks = chunk_text(doc["text"])
+        for chunk_idx, chunk_text_content in enumerate(chunks, start=1):
+            all_chunks.append({
+                "id": f"[Source-{doc_idx}, Chunk-{chunk_idx}]",
+                "text": chunk_text_content,
+                "title": doc["title"],
+                "pmid": doc["pmid"]
+            })
 
+    chunk_texts = [c["text"] for c in all_chunks]
+    query_embedding = embedding_model.encode([semantic_vector_query])
+    chunk_embeddings = embedding_model.encode(chunk_texts)
+    dense_scores = cosine_similarity(query_embedding, chunk_embeddings).flatten()
+    dense_indices = np.argsort(dense_scores)[::-1]
+    dense_ranks = {idx: rank for rank, idx in enumerate(dense_indices, start=1)}
+
+    tokenized_chunks = [tokenize(c["text"]) for c in all_chunks]
+    bm25 = BM25Okapi(tokenized_chunks)
+    bm25_scores = bm25.get_scores(tokenize(semantic_vector_query))
+    bm25_indices = np.argsort(bm25_scores)[::-1]
+    bm25_ranks = {idx: rank for rank, idx in enumerate(bm25_indices, start=1)}
+
+    rrf_scores = []
+    for idx in range(len(all_chunks)):
+        rank_bm25 = bm25_ranks[idx]
+        rank_dense = dense_ranks[idx]
+        rrf_score = 1.0 / (60.0 + rank_bm25) + 1.0 / (60.0 + rank_dense)
+        rrf_scores.append(rrf_score)
+
+    max_theoretical = 2.0 / 61.0
+    merged_results = []
+    sorted_indices = np.argsort(rrf_scores)[::-1][:5]
+    for idx in sorted_indices:
+        chunk = all_chunks[idx]
+        normalized_rrf = rrf_scores[idx] / max_theoretical
+        presentation_score = round(0.3 + (normalized_rrf * 0.7), 4)
         merged_results.append({
-            "title": doc["title"],
-            "text": doc["text"],
+            "id": chunk["id"],
+            "title": chunk["title"],
+            "text": chunk["text"],
+            "pmid": chunk["pmid"],
             "hybrid_score": presentation_score,
             "is_paper": True
         })
-        
-    # Sort and slice top 5 records
-    merged_results = sorted(merged_results, key=lambda x: x["hybrid_score"], reverse=True)[:5]
+
     print(f"[RAG Ingestion Node] Successfully appended {len(merged_results)} hybrid-ranked papers to state payload.")
     print(f"[RAG Ingestion Node] Successfully extracted {len(kg_substructure)} graph cached medical pathways.")
-    # 6. RETURN AIRTIGHT HETEROGENEOUS CONTEXT ARRAYS TO AGENT STATE
-    test_harness_chunks = list(merged_results) # Copy the original top 5 papers
+
+    test_harness_chunks = list(merged_results)
     for edge in kg_substructure:
         test_harness_chunks.append({
             "title": f"Graph Edge: {edge.get('source')} -> {edge.get('target')}",
             "text": f"Relationship type: {edge.get('type')}",
             "hybrid_score": 0.0,
-            "is_paper": False  #  for!
+            "is_paper": False
         })
     return {
         "retrieved_chunks": test_harness_chunks,
