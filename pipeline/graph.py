@@ -49,4 +49,4 @@ def build_pcos_pipeline():
     workflow.add_edge("AuditInterceptorNode", END)
 
     memory = MemorySaver()
-    return workflow.compile(checkpointer=memory, interrupt_after=["JudgeNode"])
+    return workflow.compile(checkpointer=memory)

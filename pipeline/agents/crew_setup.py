@@ -44,6 +44,30 @@ def _summarize_context(text: str, max_chars: int = 400) -> str:
     cleaned = re.sub(r"\s+", " ", text).strip()
     return cleaned[:max_chars]
 
+def _create_ollama_llm() -> LLM:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    primary_model = os.getenv("LLM_MODEL", "ollama/qwen2.5:7b")
+    fallback_model = os.getenv("OLLAMA_FALLBACK_MODEL", "ollama/llama3.2:3b")
+
+    try:
+        print(f"[LLM] Attempting primary Ollama model: {primary_model}")
+        return LLM(
+            model=primary_model,
+            base_url=base_url,
+            temperature=0.0,
+            timeout=300
+        )
+    except Exception as e:
+        print(f"[LLM WARNING] Primary Ollama model '{primary_model}' failed: {e}")
+        print(f"[LLM] Falling back to secondary Ollama model: {fallback_model}")
+        return LLM(
+            model=fallback_model,
+            base_url=base_url,
+            temperature=0.0,
+            timeout=300
+        )
+
+
 def run_pcos_debate(graph_context: str, literature_context: str, patient_data: str, llm_choice: str = "Ollama Local", groq_api_key: str = None) -> dict:
     bmi = _extract_value(r"BMI:\s*([\d\.]+)", patient_data, 24.5)
     insulin = _extract_value(r"Fasting Insulin:\s*([\d\.]+)", patient_data, 14.2)
@@ -63,20 +87,13 @@ def run_pcos_debate(graph_context: str, literature_context: str, patient_data: s
     if llm_choice == "Groq API":
         api_key = groq_api_key or os.getenv("GROQ_API_KEY")
         selected_llm = LLM(
-            model="groq/llama3-70b-8192", 
+            model="groq/llama-3.3-70b-versatile", 
             api_key=api_key,
             temperature=0.0,
             timeout=300
         )
     else:
-        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        model_name = os.getenv("LLM_MODEL", "ollama/llama3.2:3b")
-        selected_llm = LLM(
-            model=model_name, 
-            base_url=base_url,
-            temperature=0.0,
-            timeout=300
-        )
+        selected_llm = _create_ollama_llm()
 
     endocrinology_agent = Agent(
         role="Reproductive Endocrinologist",

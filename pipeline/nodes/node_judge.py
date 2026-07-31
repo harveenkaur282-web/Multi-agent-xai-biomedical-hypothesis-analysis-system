@@ -55,9 +55,15 @@ def node_judge_fn(state: PCOSState) -> PCOSState:
     
     literature_context_str = "\n\n".join(literature_list) if literature_list else "No literature retrieved."
 
-    # 2. Setup LLM Backend Call
-    llm_choice = raw_patient.get("llm_choice", "Ollama Local")
+    # 2. Setup LLM Backend Call (opposite of selected CrewAI backend for independent validation)
+    selected_choice = raw_patient.get("llm_choice", "Ollama Local")
+    judge_llm_choice = "Groq API" if selected_choice == "Ollama Local" else "Ollama Local"
     groq_api_key = raw_patient.get("groq_api_key") or os.getenv("GROQ_API_KEY")
+    if judge_llm_choice == "Groq API" and not groq_api_key:
+        judge_llm_choice = "Ollama Local"
+
+    print(f"[JUDGE NODE] CrewAI backend: '{selected_choice}' → Judge backend: '{judge_llm_choice}'")
+    print(f"[JUDGE NODE] Groq API key present: {bool(groq_api_key)}")
 
     prompt = f"""
 You are an expert biomedical diagnostics validator acting as an LLM-as-a-Judge and RAG evaluator.
@@ -89,37 +95,86 @@ Return ONLY a valid JSON object matching this structure:
 }}
 """
 
-    response_json = {}
-    try:
-        if llm_choice == "Groq API" and groq_api_key:
-            headers = {
-                "Authorization": f"Bearer {groq_api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": "llama3-70b-8192",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.0,
-                "response_format": {"type": "json_object"}
-            }
-            res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
-            if res.status_code == 200:
-                response_json = json.loads(res.json()["choices"][0]["message"]["content"])
+    import re
+
+    def _call_groq(prompt_text, api_key):
+        """Attempt LLM-as-a-Judge evaluation via Groq API."""
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [{"role": "user", "content": prompt_text}],
+            "temperature": 0.0,
+            "response_format": {"type": "json_object"}
+        }
+        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
+        if res.status_code == 200:
+            resp_text = res.json()["choices"][0]["message"]["content"].strip()
+            if resp_text.startswith("```"):
+                resp_text = re.sub(r"^```(?:json)?\n", "", resp_text)
+                resp_text = re.sub(r"\n```$", "", resp_text).strip()
+            return json.loads(resp_text)
         else:
-            # Fallback to Ollama Local
-            base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-            raw_model = os.getenv("LLM_MODEL", "ollama/llama3.2:3b")
+            print(f"[JUDGE NODE] Groq API returned HTTP {res.status_code}: {res.text[:200]}")
+            return {}
+
+    def _call_ollama(prompt_text):
+        """Attempt LLM-as-a-Judge evaluation via Ollama Local, with fallback to a smaller model."""
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        primary_model = os.getenv("LLM_MODEL", "ollama/qwen2.5:7b")
+        fallback_model = os.getenv("OLLAMA_FALLBACK_MODEL", "ollama/llama3.2:3b")
+        model_candidates = [primary_model, fallback_model]
+
+        for raw_model in model_candidates:
             model_name = raw_model.split("/")[-1] if "/" in raw_model else raw_model
-            
-            res = requests.post(
-                f"{base_url}/api/generate",
-                json={"model": model_name, "prompt": prompt, "stream": False, "format": "json"},
-                timeout=45
-            )
-            if res.status_code == 200:
-                response_json = json.loads(res.json()["response"])
+            try:
+                print(f"[JUDGE NODE] Trying Ollama model: {raw_model}")
+                res = requests.post(
+                    f"{base_url}/api/generate",
+                    json={"model": model_name, "prompt": prompt_text, "stream": False, "format": "json"},
+                    timeout=120
+                )
+                if res.status_code == 200:
+                    resp_text = res.json()["response"].strip()
+                    if resp_text.startswith("```"):
+                        resp_text = re.sub(r"^```(?:json)?\n", "", resp_text)
+                        resp_text = re.sub(r"\n```$", "", resp_text).strip()
+                    return json.loads(resp_text)
+                else:
+                    print(f"[JUDGE NODE] Ollama {raw_model} returned HTTP {res.status_code}")
+            except Exception as exc:
+                print(f"[JUDGE NODE] Ollama {raw_model} failed: {exc}")
+
+        print(f"[JUDGE NODE] All local Ollama models failed: {model_candidates}")
+        return {}
+
+    # Cascading fallback: primary judge backend → opposite backend → rule-based heuristic
+    response_json = {}
+
+    # Step 1: Try the primary judge backend
+    try:
+        if judge_llm_choice == "Groq API" and groq_api_key:
+            print(f"[JUDGE NODE] Attempting primary judge via Groq API...")
+            response_json = _call_groq(prompt, groq_api_key)
+        else:
+            print(f"[JUDGE NODE] Attempting primary judge via Ollama Local...")
+            response_json = _call_ollama(prompt)
     except Exception as e:
-        print(f"[JUDGE NODE WARNING] LLM Judge call failed: {e}. Falling back to rule-based fallback evaluations.")
+        print(f"[JUDGE NODE WARNING] Primary judge call ({judge_llm_choice}) failed: {e}")
+
+    # Step 2: If primary failed, try the opposite backend as fallback
+    if not response_json or "rotterdam_accuracy" not in response_json:
+        fallback_choice = "Ollama Local" if judge_llm_choice == "Groq API" else "Groq API"
+        print(f"[JUDGE NODE] Primary judge failed. Cascading to fallback: {fallback_choice}...")
+        try:
+            if fallback_choice == "Groq API" and groq_api_key:
+                response_json = _call_groq(prompt, groq_api_key)
+            else:
+                response_json = _call_ollama(prompt)
+        except Exception as e2:
+            print(f"[JUDGE NODE WARNING] Fallback judge call ({fallback_choice}) also failed: {e2}")
 
     # Rule-based fallback if LLM response is empty or failed
     if not response_json or "rotterdam_accuracy" not in response_json:

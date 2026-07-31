@@ -231,9 +231,20 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
 
     max_theoretical = 2.0 / 61.0
     merged_results = []
-    sorted_indices = np.argsort(rrf_scores)[::-1][:5]
+    seen_texts = set()
+    seen_titles = set()
+    sorted_indices = np.argsort(rrf_scores)[::-1]
     for idx in sorted_indices:
         chunk = all_chunks[idx]
+        normalized_text = " ".join(chunk["text"].strip().lower().split())
+        normalized_title = chunk["title"].strip().lower()
+        
+        # Skip if we've seen this exact text OR another chunk from the same paper
+        if normalized_text in seen_texts or normalized_title in seen_titles:
+            continue
+        seen_texts.add(normalized_text)
+        seen_titles.add(normalized_title)
+        
         normalized_rrf = rrf_scores[idx] / max_theoretical
         presentation_score = round(0.3 + (normalized_rrf * 0.7), 4)
         merged_results.append({
@@ -244,6 +255,8 @@ def node1_ingestion_fn(state: PCOSState) -> dict:
             "hybrid_score": presentation_score,
             "is_paper": True
         })
+        if len(merged_results) >= 5:
+            break
 
     print(f"[RAG Ingestion Node] Successfully appended {len(merged_results)} hybrid-ranked papers to state payload.")
     print(f"[RAG Ingestion Node] Successfully extracted {len(kg_substructure)} graph cached medical pathways.")
